@@ -3,7 +3,7 @@ import '../../app/theme/app_colors.dart';
 import '../../app/theme/app_spacing.dart';
 import '../../app/theme/app_text_styles.dart';
 
-enum AppButtonVariant { primary, secondary, danger, outline, text }
+enum AppButtonVariant { primary, navy, secondary, danger, outline, ghost, text }
 
 class AppButton extends StatelessWidget {
   final String label;
@@ -12,6 +12,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final IconData? icon;
   final double? width;
+  final bool isCompact;
 
   const AppButton({
     super.key,
@@ -21,6 +22,7 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.icon,
     this.width,
+    this.isCompact = false,
   });
 
   @override
@@ -32,6 +34,10 @@ class AppButton extends StatelessWidget {
     switch (variant) {
       case AppButtonVariant.primary:
         bg = AppColors.brand;
+        fg = Colors.white;
+        break;
+      case AppButtonVariant.navy:
+        bg = AppColors.primaryNavy;
         fg = Colors.white;
         break;
       case AppButtonVariant.secondary:
@@ -47,16 +53,27 @@ class AppButton extends StatelessWidget {
         fg = AppColors.ink;
         border = const BorderSide(color: AppColors.line);
         break;
+      case AppButtonVariant.ghost:
+        bg = Colors.transparent;
+        fg = AppColors.brand;
+        border = const BorderSide(color: AppColors.brand, width: 1.2);
+        break;
       case AppButtonVariant.text:
         bg = Colors.transparent;
         fg = AppColors.brand;
         break;
     }
 
+    final visualHeight = isCompact ? 36.0 : 48.0;
+    final textStyle = isCompact
+        ? AppTextStyles.labelMedium.copyWith(color: fg, fontSize: 13)
+        : AppTextStyles.labelLarge.copyWith(color: fg);
+    final iconSize = isCompact ? 15.0 : 18.0;
+
     final child = isLoading
         ? SizedBox(
-            width: 20,
-            height: 20,
+            width: isCompact ? 16 : 20,
+            height: isCompact ? 16 : 20,
             child: CircularProgressIndicator(
               strokeWidth: 2.2,
               valueColor: AlwaysStoppedAnimation<Color>(fg),
@@ -67,31 +84,56 @@ class AppButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 18, color: fg),
+                Icon(icon, size: iconSize, color: fg),
                 const SizedBox(width: AppSpacing.sm),
               ],
               Text(
                 label,
-                style: AppTextStyles.labelLarge.copyWith(color: fg),
+                style: textStyle,
               ),
             ],
           );
 
-    return SizedBox(
-      width: width,
-      height: 48,
-      child: Material(
-        color: onPressed == null ? bg.withValues(alpha: 0.5) : bg,
-        shape: RoundedRectangleBorder(
-          borderRadius: AppSpacing.borderRadiusMd,
-          side: border,
-        ),
-        child: InkWell(
-          onTap: isLoading ? null : onPressed,
-          borderRadius: AppSpacing.borderRadiusMd,
-          child: Center(child: child),
+    final visualButton = Material(
+      color: onPressed == null ? bg.withValues(alpha: 0.5) : bg,
+      shape: RoundedRectangleBorder(
+        borderRadius: isCompact ? AppSpacing.borderRadiusSm : AppSpacing.borderRadiusMd,
+        side: border,
+      ),
+      child: InkWell(
+        onTap: isLoading ? null : onPressed,
+        borderRadius: isCompact ? AppSpacing.borderRadiusSm : AppSpacing.borderRadiusMd,
+        child: Container(
+          width: width,
+          height: visualHeight,
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 16),
+          alignment: Alignment.center,
+          child: child,
         ),
       ),
+    );
+
+    if (isCompact) {
+      // Accessible 48dp touch target around 36dp visual button
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: 48.0,
+          minWidth: width ?? 48.0,
+        ),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isLoading ? null : onPressed,
+          child: Center(
+            child: visualButton,
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: width,
+      height: 48.0,
+      child: visualButton,
     );
   }
 }

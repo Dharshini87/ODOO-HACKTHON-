@@ -35,7 +35,9 @@ eggs/
 .mypy_cache/
 .ruff_cache/
 .hypothesis/
-instance/
+# --- Storage ---
+backend/storage/
+storage/
 
 # --- Frontend (Node / Vite / React) ---
 frontend/node_modules/

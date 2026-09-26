@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..core.dependencies import get_current_user
+from ..core.dependencies import get_current_user, require_manager
 from ..services.auth_service import AuthService
 
 router = APIRouter(tags=["Authentication"])
@@ -135,3 +135,22 @@ def get_me(current_user: models.User = Depends(get_current_user)):
         is_manager=current_user.is_manager,
         created_at=current_user.created_at,
     )
+
+
+@router.get("/system/settings")
+@router.get("/settings/system")
+def get_auth_system_settings(current_user: models.User = Depends(require_manager)):
+    """
+    Manager-only access to system & server configuration.
+    Staff members receive HTTP 403 Forbidden.
+    """
+    return {
+        "status": "success",
+        "system": {
+            "project_name": "StockSense",
+            "version": "1.0.0",
+            "auth_method": "JWT Bearer (HS256)",
+            "role_enforcement": "STRICT_DATABASE_RBAC",
+            "current_manager": current_user.email,
+        }
+    }

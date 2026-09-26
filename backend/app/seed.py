@@ -117,7 +117,7 @@ def seed_demo_data(db: Session) -> dict:
             db.refresh(p)
         products[name] = p
 
-    # 5. USERS: Inventory Manager, Warehouse Staff
+    # 5. USERS: Inventory Manager, Warehouse Staff (including preferred .demo development accounts)
     manager = db.query(models.User).filter(models.User.email == "manager@stocksense.com").first()
     if not manager:
         manager = models.User(
@@ -144,6 +144,33 @@ def seed_demo_data(db: Session) -> dict:
         db.commit()
         db.refresh(staff)
 
+    # Preferred development demo accounts
+    demo_manager = db.query(models.User).filter(models.User.email == "manager@stocksense.demo").first()
+    if not demo_manager:
+        demo_manager = models.User(
+            name="Inventory Manager (Demo)",
+            email="manager@stocksense.demo",
+            password_hash=auth.hash_password("password123"),
+            role="INVENTORY_MANAGER",
+            is_active=True,
+        )
+        db.add(demo_manager)
+        db.commit()
+        db.refresh(demo_manager)
+
+    demo_staff = db.query(models.User).filter(models.User.email == "staff@stocksense.demo").first()
+    if not demo_staff:
+        demo_staff = models.User(
+            name="Warehouse Staff (Demo)",
+            email="staff@stocksense.demo",
+            password_hash=auth.hash_password("password123"),
+            role="WAREHOUSE_STAFF",
+            is_active=True,
+        )
+        db.add(demo_staff)
+        db.commit()
+        db.refresh(demo_staff)
+
     return {
         "warehouse": wh,
         "locations": locations,
@@ -152,6 +179,8 @@ def seed_demo_data(db: Session) -> dict:
         "users": {
             "manager": manager,
             "staff": staff,
+            "demo_manager": demo_manager,
+            "demo_staff": demo_staff,
         },
     }
 

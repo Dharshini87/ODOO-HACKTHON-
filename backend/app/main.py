@@ -17,6 +17,7 @@ from .routers import (
     intelligence_router,
     moves_router,
     demo_router,
+    receipt_verification_router,
 )
 
 Base.metadata.create_all(bind=engine)
@@ -82,6 +83,8 @@ app.include_router(moves_router.router)
 app.include_router(moves_router.router, prefix="/api")
 app.include_router(demo_router.router)
 app.include_router(demo_router.router, prefix="/api")
+app.include_router(receipt_verification_router.router)
+app.include_router(receipt_verification_router.router, prefix="/api")
 
 
 from sqlalchemy import text

@@ -24,7 +24,7 @@ def upgrade() -> None:
         sa.Column('email', sa.String(length=255), nullable=False, unique=True, index=True),
         sa.Column('password_hash', sa.String(length=255), nullable=False),
         sa.Column('role', sa.String(length=50), nullable=False, server_default='staff'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('otp_code', sa.String(length=10), nullable=True),
         sa.Column('otp_expiry', sa.DateTime(timezone=True), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -37,7 +37,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
         sa.Column('name', sa.String(length=255), nullable=False, unique=True, index=True),
         sa.Column('description', sa.String(length=500), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
@@ -52,7 +52,7 @@ def upgrade() -> None:
         sa.Column('unit_of_measure', sa.String(length=50), nullable=False, server_default='unit'),
         sa.Column('cost_per_unit', sa.Numeric(precision=12, scale=2), nullable=False, server_default='0.00'),
         sa.Column('reorder_point', sa.Numeric(precision=12, scale=3), nullable=False, server_default='0.000'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
@@ -64,7 +64,7 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('short_code', sa.String(length=50), nullable=False, unique=True, index=True),
         sa.Column('address', sa.String(length=500), nullable=True),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
@@ -76,8 +76,8 @@ def upgrade() -> None:
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('short_code', sa.String(length=50), nullable=False, index=True),
         sa.Column('warehouse_id', sa.Integer(), sa.ForeignKey('warehouses.id', ondelete='RESTRICT'), nullable=True),
-        sa.Column('is_virtual', sa.Boolean(), nullable=False, server_default=sa.text('0')),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.text('1')),
+        sa.Column('is_virtual', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
@@ -140,7 +140,9 @@ def upgrade() -> None:
         sa.Column('transaction_id', sa.Integer(), sa.ForeignKey('transactions.id', ondelete='RESTRICT'), nullable=True, index=True),
         sa.Column('product_id', sa.Integer(), sa.ForeignKey('products.id', ondelete='RESTRICT'), nullable=False, index=True),
         sa.Column('location_id', sa.Integer(), sa.ForeignKey('locations.id', ondelete='RESTRICT'), nullable=False, index=True),
+        sa.Column('quantity_before', sa.Numeric(precision=12, scale=3), nullable=True),
         sa.Column('quantity_change', sa.Numeric(precision=12, scale=3), nullable=False),
+        sa.Column('quantity_after', sa.Numeric(precision=12, scale=3), nullable=True),
         sa.Column('running_balance', sa.Numeric(precision=12, scale=3), nullable=False),
         sa.Column('reference', sa.String(length=100), nullable=False, index=True),
         sa.Column('movement_type', sa.String(length=50), nullable=False, index=True),
@@ -156,7 +158,7 @@ def upgrade() -> None:
         sa.Column('token', sa.String(length=255), nullable=False, unique=True, index=True),
         sa.Column('otp_code', sa.String(length=10), nullable=True),
         sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('is_used', sa.Boolean(), nullable=False, server_default=sa.text('0')),
+        sa.Column('is_used', sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
 
@@ -164,17 +166,38 @@ def upgrade() -> None:
     op.create_table(
         'idempotency_keys',
         sa.Column('id', sa.Integer(), primary_key=True, index=True),
-        sa.Column('key', sa.String(length=255), nullable=False, unique=True, index=True),
-        sa.Column('endpoint', sa.String(length=255), nullable=False),
+        sa.Column('key', sa.String(length=255), nullable=False, index=True),
+        sa.Column('endpoint', sa.String(length=255), nullable=False, index=True),
+        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='CASCADE'), nullable=True, index=True),
         sa.Column('request_hash', sa.String(length=255), nullable=True),
         sa.Column('response_code', sa.Integer(), nullable=True),
         sa.Column('response_body', sa.Text(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=True),
+        sa.UniqueConstraint('key', 'endpoint', 'user_id', name='uq_idempotency_key_endpoint_user'),
+    )
+
+    # 12. stock_moves
+    op.create_table(
+        'stock_moves',
+        sa.Column('id', sa.Integer(), primary_key=True, index=True),
+        sa.Column('reference', sa.String(length=100), nullable=False, unique=True, index=True),
+        sa.Column('move_type', sa.String(length=50), nullable=False),
+        sa.Column('product_id', sa.Integer(), sa.ForeignKey('products.id', ondelete='RESTRICT'), nullable=False),
+        sa.Column('from_location_id', sa.Integer(), sa.ForeignKey('locations.id', ondelete='RESTRICT'), nullable=True),
+        sa.Column('to_location_id', sa.Integer(), sa.ForeignKey('locations.id', ondelete='RESTRICT'), nullable=True),
+        sa.Column('quantity', sa.Float(), nullable=False),
+        sa.Column('status', sa.String(length=50), nullable=False, server_default='draft'),
+        sa.Column('contact', sa.String(length=255), nullable=True),
+        sa.Column('responsible_id', sa.Integer(), sa.ForeignKey('users.id', ondelete='SET NULL'), nullable=True),
+        sa.Column('scheduled_date', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column('done_at', sa.DateTime(timezone=True), nullable=True),
     )
 
 
 def downgrade() -> None:
+    op.drop_table('stock_moves')
     op.drop_table('idempotency_keys')
     op.drop_table('password_reset_tokens')
     op.drop_table('stock_ledger')

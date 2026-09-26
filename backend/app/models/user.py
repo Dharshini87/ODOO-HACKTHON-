@@ -70,5 +70,7 @@ class User(Base):
             "manage_warehouses",
             "manage_locations",
             "cancel_other_transaction",
+            "access_system_settings",
+            "manage_system_settings",
         }
         return permission.lower().strip() not in manager_only

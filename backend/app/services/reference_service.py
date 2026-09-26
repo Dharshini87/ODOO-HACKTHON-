@@ -64,7 +64,7 @@ def generate_transaction_reference(
 ) -> str:
     """
     Section 41:
-    Backend generates references.
+    Backend generates references using sequences.
     Examples:
       WH/IN/0001
       WH/OUT/0001
@@ -73,6 +73,14 @@ def generate_transaction_reference(
     """
     code = TYPE_TO_CODE.get(tx_type, "TX")
     seq_name = f"seq_tx_{code.lower()}"
-    next_val = get_next_sequence_value(db, seq_name)
     prefix = (warehouse_code or "WH").strip().upper()
-    return f"{prefix}/{code}/{next_val:04d}"
+
+    while True:
+        next_val = get_next_sequence_value(db, seq_name)
+        ref = f"{prefix}/{code}/{next_val:04d}"
+        existing = db.execute(
+            text("SELECT 1 FROM transactions WHERE reference = :ref"),
+            {"ref": ref},
+        ).scalar()
+        if not existing:
+            return ref

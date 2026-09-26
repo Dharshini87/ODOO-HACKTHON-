@@ -38,6 +38,8 @@ def api_seed_demo_data(db: Session = Depends(get_db)):
             for p in data["products"].values()
         ],
         "users": [
+            {"role": "INVENTORY_MANAGER", "email": "manager@stocksense.demo", "password": "password123"},
+            {"role": "WAREHOUSE_STAFF", "email": "staff@stocksense.demo", "password": "password123"},
             {"role": "INVENTORY_MANAGER", "email": "manager@stocksense.com", "password": "password123"},
             {"role": "WAREHOUSE_STAFF", "email": "staff@stocksense.com", "password": "password123"},
         ],

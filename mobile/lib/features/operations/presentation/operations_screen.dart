@@ -19,7 +19,8 @@ import '../../adjustments/presentation/create_adjustment_screen.dart';
 import '../../../shared/providers/inventory_providers.dart';
 
 class OperationsScreen extends ConsumerStatefulWidget {
-  const OperationsScreen({super.key});
+  final int initialIndex;
+  const OperationsScreen({super.key, this.initialIndex = 0});
 
   @override
   ConsumerState<OperationsScreen> createState() => _OperationsScreenState();
@@ -31,8 +32,13 @@ class _OperationsScreenState extends ConsumerState<OperationsScreen> with Single
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(
+      length: 4,
+      vsync: this,
+      initialIndex: widget.initialIndex.clamp(0, 3),
+    );
   }
+
 
   @override
   void dispose() {

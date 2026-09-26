@@ -213,6 +213,7 @@ def validate_adjustment(
     adjustment_id: int,
     db: Session = Depends(get_db),
     user: models.User = Depends(require_manager),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     """
@@ -226,17 +227,16 @@ def validate_adjustment(
     if not tx or tx.type != TransactionType.ADJUSTMENT:
         raise HTTPException(status_code=404, detail="Adjustment not found")
 
-    if tx.status == TransactionStatus.DONE:
-        raise HTTPException(status_code=400, detail="Adjustment is already validated (DONE)")
     if tx.status == TransactionStatus.CANCELED:
         raise HTTPException(status_code=400, detail="Cannot validate a canceled adjustment")
 
+    effective_key = idempotency_key or x_idempotency_key
     # Authoritative 13-step transaction engine validation
     engine = InventoryTransactionEngine(db)
     validated_tx = engine.validate_transaction(
         transaction_id=tx.id,
         user=user,
-        idempotency_key=x_idempotency_key,
+        idempotency_key=effective_key,
     )
     return _serialize_adjustment(validated_tx, db)
 

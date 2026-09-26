@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
+
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
@@ -60,8 +62,18 @@ class _DeliveryListScreenState extends ConsumerState<DeliveryListScreen> {
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
+          },
+        ),
         title: Text('Outbound Deliveries', style: AppTextStyles.headlineLarge),
         actions: [
+
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Check Waiting Deliveries',

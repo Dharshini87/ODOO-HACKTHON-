@@ -114,7 +114,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: AppCard(
                       color: AppColors.charcoal,
                       border: BorderSide.none,
-                      onTap: () => context.go('/operations'),
+                      onTap: () => context.push('/receipts'),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -145,7 +145,7 @@ class DashboardScreen extends ConsumerWidget {
                     child: AppCard(
                       color: AppColors.brand,
                       border: BorderSide.none,
-                      onTap: () => context.go('/operations'),
+                      onTap: () => context.push('/deliveries'),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -259,6 +259,20 @@ class DashboardScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.sm),
 
+              // Operations Section Header & KPIs
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Operations', style: AppTextStyles.headlineMedium),
+                  TextButton.icon(
+                    onPressed: () => context.go('/operations'),
+                    icon: const Icon(Icons.dashboard_outlined, size: 16),
+                    label: const Text('Operator Dashboard'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+
               // Operations KPIs (Pending Receipts, Deliveries, Waiting Deliveries, Transfers)
               _buildMetricTile(
                 context: context,
@@ -266,7 +280,7 @@ class DashboardScreen extends ConsumerWidget {
                 value: '${data.pendingReceipts}',
                 icon: Icons.move_to_inbox_rounded,
                 tone: AppColors.statusReady,
-                onTap: () => context.go('/operations'),
+                onTap: () => context.push('/receipts'),
               ),
               const SizedBox(height: AppSpacing.sm),
               _buildMetricTile(
@@ -276,7 +290,7 @@ class DashboardScreen extends ConsumerWidget {
                 icon: Icons.local_shipping_outlined,
                 tone: AppColors.brand,
                 subtitle: data.waitingDeliveries > 0 ? '${data.waitingDeliveries} waiting for stock' : null,
-                onTap: () => context.go('/operations'),
+                onTap: () => context.push('/deliveries'),
               ),
               const SizedBox(height: AppSpacing.sm),
               _buildMetricTile(
@@ -286,7 +300,7 @@ class DashboardScreen extends ConsumerWidget {
                 icon: Icons.hourglass_top_rounded,
                 tone: AppColors.amber,
                 subtitle: 'Deliveries with stock shortage',
-                onTap: () => context.go('/operations'),
+                onTap: () => context.push('/deliveries'),
               ),
               const SizedBox(height: AppSpacing.sm),
               _buildMetricTile(
@@ -295,7 +309,7 @@ class DashboardScreen extends ConsumerWidget {
                 value: '${data.transfersScheduled}',
                 icon: Icons.swap_horiz_rounded,
                 tone: AppColors.charcoal,
-                onTap: () => context.go('/operations'),
+                onTap: () => context.push('/transfers'),
               ),
               const SizedBox(height: AppSpacing.lg),
 
@@ -540,7 +554,7 @@ class DashboardScreen extends ConsumerWidget {
                 children: [
                   Text('Recent Movements', style: AppTextStyles.headlineMedium),
                   TextButton(
-                    onPressed: () => context.go('/operations'),
+                    onPressed: () => context.go('/history'),
                     child: const Text('View All'),
                   ),
                 ],
@@ -565,7 +579,17 @@ class DashboardScreen extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final move = data.recentMovements[index];
                     return AppCard(
-                      onTap: () => context.go('/operations'),
+                      onTap: () {
+                        if (move.type == 'RECEIPT') {
+                          context.push('/receipts');
+                        } else if (move.type == 'DELIVERY') {
+                          context.push('/deliveries');
+                        } else if (move.type == 'TRANSFER') {
+                          context.push('/transfers');
+                        } else {
+                          context.push('/adjustments');
+                        }
+                      },
                       child: Row(
                         children: [
                           Container(

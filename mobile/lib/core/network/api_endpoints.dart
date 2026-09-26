@@ -32,6 +32,10 @@ class ApiEndpoints {
   static String readyReceipt(int id) => '/receipts/$id/ready';
   static String validateReceipt(int id) => '/receipts/$id/validate';
   static String cancelReceipt(int id) => '/receipts/$id/cancel';
+  static String receiptDocument(int id) => '/receipts/$id/receipt-document';
+  static String verifyReceiptDocument(int id) => '/receipts/$id/receipt-document/verify';
+  static String receiptVerification(int id) => '/receipts/$id/receipt-verification';
+
 
   static const String deliveries = '/deliveries';
   static String readyDelivery(int id) => '/deliveries/$id/ready';

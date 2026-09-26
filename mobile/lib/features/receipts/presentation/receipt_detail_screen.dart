@@ -7,6 +7,8 @@ import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import 'physical_receipt_verification_card.dart';
+
 
 class ReceiptDetailScreen extends ConsumerStatefulWidget {
   final StockMoveItem initialReceipt;
@@ -218,8 +220,20 @@ class _ReceiptDetailScreenState extends ConsumerState<ReceiptDetailScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
 
+            // Physical Receipt Verification (Sections 26-31)
+            PhysicalReceiptVerificationCard(
+              receiptId: _receipt.id,
+              reference: _receipt.reference,
+              productName: _receipt.productName,
+              quantity: _receipt.quantity,
+              supplier: _receipt.contact,
+              isImmutable: isDone || isCanceled,
+            ),
+            const SizedBox(height: AppSpacing.md),
+
             // Ledger Impact Card (If DONE)
             if (isDone) ...[
+
               Text('Audit Ledger Record (Section 19)', style: AppTextStyles.headlineSmall),
               const SizedBox(height: 8),
               Container(

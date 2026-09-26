@@ -171,6 +171,7 @@ def prepare_transaction(
 def validate_transaction_endpoint(
     transaction_id: int,
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
@@ -179,11 +180,12 @@ def validate_transaction_endpoint(
     Section 40: Protected by Idempotency-Key against double taps, network retries.
     A transaction must never mutate inventory twice.
     """
+    effective_key = idempotency_key or x_idempotency_key
     engine = InventoryTransactionEngine(db)
     tx = engine.validate_transaction(
         transaction_id=transaction_id,
         user=user,
-        idempotency_key=idempotency_key,
+        idempotency_key=effective_key,
     )
     return _serialize_tx(tx)
 

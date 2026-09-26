@@ -40,14 +40,14 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.panel,
-        indicatorColor: AppColors.brand.withValues(alpha: 0.12),
-        elevation: 2,
+        backgroundColor: AppColors.navyDark,
+        indicatorColor: AppColors.navySurface,
+        elevation: 8,
         height: 68,
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppTextStyles.labelSmall.copyWith(
-              color: AppColors.brand,
+              color: AppColors.brandLight,
               fontWeight: FontWeight.w600,
             );
           }
@@ -57,9 +57,9 @@ class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.brand, size: 24);
+            return const IconThemeData(color: AppColors.brandLight, size: 24);
           }
-          return const IconThemeData(color: AppColors.inkSecondary, size: 24);
+          return const IconThemeData(color: AppColors.inkTertiary, size: 24);
         }),
       ),
       cardTheme: CardThemeData(

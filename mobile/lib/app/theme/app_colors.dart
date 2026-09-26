@@ -13,6 +13,8 @@ class AppColors {
   static const Color navyDark = Color(0xFF0C1830);
   static const Color navySurface = Color(0xFF132247);
   static const Color navyBorder = Color(0xFF1E356D);
+  static const Color primaryNavy = Color(0xFF1E2B6F); // Primary Button in UI/1.png
+  static const Color cardShadow = Color(0x0A0F172A);
 
   // Typography
   static const Color ink = Color(0xFF0F172A);

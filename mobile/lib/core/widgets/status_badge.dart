@@ -71,6 +71,13 @@ class StatusBadge extends StatelessWidget {
         display = 'OUT OF STOCK';
         break;
 
+      // Status: LATE -> Amber
+      case 'LATE':
+        bg = AppColors.statusWaitingBg;
+        fg = AppColors.statusWaiting;
+        display = 'LATE';
+        break;
+
       // Transaction: DRAFT -> Gray
       case 'DRAFT':
       default:
@@ -80,20 +87,45 @@ class StatusBadge extends StatelessWidget {
         break;
     }
 
+    Widget indicator;
+    if (normalized == 'LOW_STOCK' || normalized == 'LATE') {
+      indicator = Icon(Icons.warning_amber_rounded, size: 12, color: fg);
+    } else if (normalized == 'OUT_OF_STOCK') {
+      indicator = Icon(Icons.remove_circle_outline_rounded, size: 12, color: fg);
+    } else {
+      indicator = Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: fg,
+          shape: BoxShape.circle,
+        ),
+      );
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 9.0, vertical: 4.0),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: AppSpacing.borderRadiusSm,
+        borderRadius: AppSpacing.borderRadiusPill,
+        border: Border.all(color: fg.withValues(alpha: 0.18), width: 0.8),
       ),
-      child: Text(
-        display,
-        style: AppTextStyles.labelSmall.copyWith(
-          color: fg,
-          fontWeight: FontWeight.w700,
-          fontSize: fontSize ?? 11,
-          letterSpacing: 0.4,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          indicator,
+          const SizedBox(width: 5.0),
+          Text(
+            display,
+            style: AppTextStyles.labelSmall.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w700,
+              fontSize: fontSize ?? 11,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ),
     );
   }

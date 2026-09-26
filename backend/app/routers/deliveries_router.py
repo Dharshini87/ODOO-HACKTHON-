@@ -269,6 +269,7 @@ def validate_delivery(
     delivery_id: int,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     """
@@ -282,14 +283,21 @@ def validate_delivery(
     if not tx or tx.type != TransactionType.DELIVERY:
         raise HTTPException(status_code=404, detail="Delivery not found")
 
-    if tx.status == TransactionStatus.WAITING:
-        raise HTTPException(status_code=400, detail="Cannot validate a delivery waiting for stock")
-
+    effective_key = idempotency_key or x_idempotency_key
     engine = InventoryTransactionEngine(db)
+
+    # Check if duplicate request is already idempotent before status check
+    idemp = engine.check_or_store_idempotency(effective_key, f"/api/transactions/{tx.id}/validate", user.id)
+    if not (idemp and idemp.response_code == 200):
+        if tx.status == TransactionStatus.WAITING:
+            raise HTTPException(status_code=400, detail="Cannot validate a delivery waiting for stock")
+        if tx.status == TransactionStatus.CANCELED:
+            raise HTTPException(status_code=400, detail="Cannot validate a canceled delivery")
+
     validated_tx = engine.validate_transaction(
         transaction_id=tx.id,
         user=user,
-        idempotency_key=x_idempotency_key,
+        idempotency_key=effective_key,
     )
     return _serialize_delivery(validated_tx, db)
 

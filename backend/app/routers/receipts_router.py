@@ -201,6 +201,7 @@ def mark_receipt_ready(
 def validate_receipt(
     receipt_id: int,
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
@@ -221,16 +222,15 @@ def validate_receipt(
     )
     if not tx:
         raise HTTPException(status_code=404, detail="Receipt not found")
-    if tx.status == TransactionStatus.DONE:
-        raise HTTPException(status_code=400, detail="Receipt is already validated (DONE)")
     if tx.status == TransactionStatus.CANCELED:
         raise HTTPException(status_code=400, detail="Cannot validate a canceled receipt")
 
+    effective_key = idempotency_key or x_idempotency_key
     engine = InventoryTransactionEngine(db)
     validated_tx = engine.validate_transaction(
         transaction_id=receipt_id,
         user=user,
-        idempotency_key=idempotency_key,
+        idempotency_key=effective_key,
     )
     return _serialize_receipt(validated_tx, db)
 

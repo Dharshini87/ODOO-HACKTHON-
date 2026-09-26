@@ -385,7 +385,38 @@ class InventoryTransactionEngine:
             for p_id, l_id in unique_pairs:
                 locked_stocks[(p_id, l_id)] = self._get_or_create_locked_stock(p_id, l_id)
 
-            # 8. Validate available stock & 9. Apply changes & 10. Apply reservations & 11. Write ledger
+            # 8. Validate available stock / free_to_use (Step 8 of 13)
+            # Multi-product operations must be all-or-nothing
+            for item in tx.items:
+                qty = Decimal(str(item.quantity))
+
+                if tx.type == TransactionType.DELIVERY:
+                    stock = locked_stocks[(item.product_id, tx.source_location_id)]
+                    if tx.status != TransactionStatus.READY:
+                        if stock.free_to_use < qty:
+                            raise InsufficientStockException(
+                                available=float(stock.free_to_use),
+                                requested=float(qty),
+                            )
+                elif tx.type == TransactionType.TRANSFER:
+                    src_stock = locked_stocks[(item.product_id, tx.source_location_id)]
+                    if src_stock.free_to_use < qty:
+                        raise InsufficientStockException(
+                            available=float(src_stock.free_to_use),
+                            requested=float(qty),
+                        )
+                elif tx.type == TransactionType.ADJUSTMENT:
+                    loc_id = tx.source_location_id or tx.destination_location_id
+                    stock = locked_stocks[(item.product_id, loc_id)]
+                    physical_count = qty
+                    # Section 42: Adjustment cannot reduce below reserved
+                    if physical_count < stock.reserved:
+                        raise StockSenseException(
+                            f"Adjustment cannot reduce stock below reserved quantity ({stock.reserved})",
+                            status_code=400,
+                        )
+
+            # 9. Apply stock changes & 10. Apply reservations & 11. Write ledger
             now = datetime.datetime.utcnow()
 
             for item in tx.items:
@@ -420,14 +451,6 @@ class InventoryTransactionEngine:
                         stock.on_hand = stock.on_hand - qty
                         stock.reserved = max(Decimal("0.000"), stock.reserved - qty)
                     else:
-                        # Coming directly from DRAFT: must have sufficient free stock
-                        if stock.free_to_use < qty:
-                            tx.status = TransactionStatus.WAITING
-                            self.db.commit()
-                            raise InsufficientStockException(
-                                available=float(stock.free_to_use),
-                                requested=float(qty),
-                            )
                         stock.on_hand = stock.on_hand - qty
 
                     stock.version += 1
@@ -451,14 +474,6 @@ class InventoryTransactionEngine:
                 elif tx.type == TransactionType.TRANSFER:
                     src_stock = locked_stocks[(item.product_id, tx.source_location_id)]
                     dst_stock = locked_stocks[(item.product_id, tx.destination_location_id)]
-
-                    if src_stock.free_to_use < qty:
-                        tx.status = TransactionStatus.WAITING
-                        self.db.commit()
-                        raise InsufficientStockException(
-                            available=float(src_stock.free_to_use),
-                            requested=float(qty),
-                        )
 
                     src_stock.on_hand = src_stock.on_hand - qty
                     src_stock.version += 1
@@ -502,13 +517,6 @@ class InventoryTransactionEngine:
 
                     # Physical count
                     physical_count = qty
-                    # Section 42: Adjustment cannot reduce below reserved
-                    if physical_count < stock.reserved:
-                        raise StockSenseException(
-                            f"Adjustment cannot reduce stock below reserved quantity ({stock.reserved})",
-                            status_code=400,
-                        )
-
                     delta = physical_count - stock.on_hand
                     item.adjustment_delta = delta
                     stock.on_hand = physical_count

@@ -1,7 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import '../../core/providers/core_providers.dart';
 import '../../core/network/api_endpoints.dart';
 import '../../core/network/api_client.dart';
+import '../../features/receipts/domain/receipt_verification_models.dart';
+export '../../features/receipts/domain/receipt_verification_models.dart';
 
 // ==========================================
 // 1. DASHBOARD (SECTION 26 & 27)
@@ -580,6 +583,56 @@ class ReceiptsRepository {
     final res = await _api.post(ApiEndpoints.cancelReceipt(id));
     return StockMoveItem.fromJson(res.data as Map<String, dynamic>);
   }
+
+  // Physical Receipt Document & OCR Verification (Sections 26-30, 40)
+  Future<ReceiptDocumentMeta> uploadReceiptDocument(
+    int id, {
+    required String fileName,
+    required List<int> bytes,
+    String mimeType = 'application/pdf',
+  }) async {
+    final formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes, filename: fileName),
+    });
+    final res = await _api.post(
+      ApiEndpoints.receiptDocument(id),
+      data: formData,
+    );
+    final data = res.data as Map<String, dynamic>;
+    return ReceiptDocumentMeta.fromJson(data['document'] as Map<String, dynamic>);
+  }
+
+  Future<ReceiptVerificationResult> verifyReceiptDocument(int id) async {
+    final res = await _api.post(ApiEndpoints.verifyReceiptDocument(id));
+    final data = res.data as Map<String, dynamic>;
+    return ReceiptVerificationResult.fromJson(data['verification'] as Map<String, dynamic>);
+  }
+
+  Future<ReceiptVerificationResult?> getReceiptVerification(int id) async {
+    try {
+      final res = await _api.get(ApiEndpoints.receiptVerification(id));
+      final data = res.data as Map<String, dynamic>;
+      if (data['verification'] != null) {
+        return ReceiptVerificationResult.fromJson(data['verification'] as Map<String, dynamic>);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ReceiptDocumentMeta?> getReceiptDocument(int id) async {
+    try {
+      final res = await _api.get(ApiEndpoints.receiptDocument(id));
+      final data = res.data as Map<String, dynamic>;
+      if (data['document'] != null) {
+        return ReceiptDocumentMeta.fromJson(data['document'] as Map<String, dynamic>);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 final receiptsRepositoryProvider = Provider<ReceiptsRepository>((ref) {
@@ -589,6 +642,17 @@ final receiptsRepositoryProvider = Provider<ReceiptsRepository>((ref) {
 final receiptsFutureProvider = FutureProvider<List<StockMoveItem>>((ref) async {
   return ref.watch(receiptsRepositoryProvider).getReceipts();
 });
+
+final receiptVerificationFutureProvider =
+    FutureProvider.family<ReceiptVerificationResult?, int>((ref, receiptId) async {
+  return ref.watch(receiptsRepositoryProvider).getReceiptVerification(receiptId);
+});
+
+final receiptDocumentFutureProvider =
+    FutureProvider.family<ReceiptDocumentMeta?, int>((ref, receiptId) async {
+  return ref.watch(receiptsRepositoryProvider).getReceiptDocument(receiptId);
+});
+
 
 class DeliveriesRepository {
   final ApiClient _api;

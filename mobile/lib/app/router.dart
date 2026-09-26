@@ -13,6 +13,14 @@ import '../features/operations/presentation/operations_screen.dart';
 import '../features/stock/presentation/stock_screen.dart';
 import '../features/move_history/presentation/history_screen.dart';
 import '../features/more/presentation/more_screen.dart';
+import '../features/receipts/presentation/receipt_list_screen.dart';
+import '../features/receipts/presentation/create_receipt_screen.dart';
+import '../features/deliveries/presentation/delivery_list_screen.dart';
+import '../features/deliveries/presentation/create_delivery_screen.dart';
+import '../features/transfers/presentation/transfer_list_screen.dart';
+import '../features/transfers/presentation/create_transfer_screen.dart';
+import '../features/adjustments/presentation/adjustment_list_screen.dart';
+import '../features/adjustments/presentation/create_adjustment_screen.dart';
 import 'scaffold_shell.dart';
 
 class RouterNotifier extends ChangeNotifier {
@@ -92,6 +100,47 @@ final routerProvider = Provider<GoRouter>((ref) {
           return ResetPasswordScreen(email: email, otpCode: otp);
         },
       ),
+      // Dedicated feature routes
+      GoRoute(
+        path: '/receipts',
+        builder: (context, state) => const ReceiptListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateReceiptScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/deliveries',
+        builder: (context, state) => const DeliveryListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateDeliveryScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/transfers',
+        builder: (context, state) => const TransferListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateTransferScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/adjustments',
+        builder: (context, state) => const AdjustmentListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateAdjustmentScreen(),
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
           return ScaffoldShell(navigationShell: navigationShell);
@@ -106,12 +155,23 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // 1. OPERATIONS
+          // 1. OPERATIONS (Operator Dashboard)
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/operations',
-                builder: (context, state) => const OperationsScreen(),
+                builder: (context, state) {
+                  final tabStr = state.uri.queryParameters['tab'];
+                  int tab = 0;
+                  if (tabStr == 'deliveries' || tabStr == '1') {
+                    tab = 1;
+                  } else if (tabStr == 'transfers' || tabStr == '2') {
+                    tab = 2;
+                  } else if (tabStr == 'adjustments' || tabStr == '3') {
+                    tab = 3;
+                  }
+                  return OperationsScreen(initialIndex: tab);
+                },
               ),
             ],
           ),
@@ -147,3 +207,4 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+

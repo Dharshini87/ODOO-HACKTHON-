@@ -278,6 +278,7 @@ def validate_transfer(
     transfer_id: int,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
     """
@@ -295,16 +296,15 @@ def validate_transfer(
     if not tx or tx.type != TransactionType.TRANSFER:
         raise HTTPException(status_code=404, detail="Transfer not found")
 
-    if tx.status == TransactionStatus.DONE:
-        raise HTTPException(status_code=400, detail="Transfer is already validated (DONE)")
     if tx.status == TransactionStatus.CANCELED:
         raise HTTPException(status_code=400, detail="Cannot validate a canceled transfer")
 
+    effective_key = idempotency_key or x_idempotency_key
     engine = InventoryTransactionEngine(db)
     validated_tx = engine.validate_transaction(
         transaction_id=tx.id,
         user=user,
-        idempotency_key=x_idempotency_key,
+        idempotency_key=effective_key,
     )
     return _serialize_transfer(validated_tx, db)
 
