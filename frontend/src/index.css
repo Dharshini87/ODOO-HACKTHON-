@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-canvas text-ink font-body antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8D4C8;
+  border-radius: 999px;
+}
+
+.ledger-plus::before {
+  content: "+";
+}
+.ledger-minus::before {
+  content: "\2212";
+}
