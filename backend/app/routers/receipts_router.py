@@ -1,0 +1,263 @@
+import datetime
+from decimal import Decimal
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Header, status, Query
+from sqlalchemy.orm import Session
+
+from .. import models, schemas
+from ..database import get_db
+from ..core.dependencies import get_current_user, check_transaction_cancellation_permission
+from ..services.inventory_engine import InventoryTransactionEngine
+from ..services.reference_service import generate_transaction_reference
+from ..models.transaction import TransactionType, TransactionStatus
+
+router = APIRouter(prefix="/receipts", tags=["Receipts (Section 19)"])
+
+
+def _serialize_receipt(tx: models.Transaction, db: Session) -> dict:
+    first_item = tx.items[0] if tx.items else None
+    prod_name = first_item.product.name if first_item and first_item.product else "Unknown Product"
+    prod_sku = first_item.product.sku if first_item and first_item.product else ""
+    qty = float(first_item.quantity) if first_item else 0.0
+
+    dest_name = tx.destination_location.name if tx.destination_location else None
+    source_name = tx.source_location.name if tx.source_location else "Vendors"
+
+    items_list = []
+    for it in tx.items:
+        items_list.append({
+            "id": it.id,
+            "product_id": it.product_id,
+            "product_name": it.product.name if it.product else "",
+            "sku": it.product.sku if it.product else "",
+            "quantity": float(it.quantity),
+            "unit": it.product.unit_of_measure if it.product else "unit",
+        })
+
+    # Find ledger entry if DONE
+    ledger_entry = None
+    if tx.status == TransactionStatus.DONE and first_item:
+        led = (
+            db.query(models.StockLedger)
+            .filter_by(transaction_id=tx.id, product_id=first_item.product_id)
+            .first()
+        )
+        if led:
+            ledger_entry = {
+                "quantity_before": float(led.quantity_before),
+                "quantity_change": float(led.quantity_change),
+                "quantity_after": float(led.quantity_after),
+                "movement_type": led.movement_type,
+            }
+
+    return {
+        "id": tx.id,
+        "reference": tx.reference,
+        "move_type": "receipt",
+        "type": "RECEIPT",
+        "status": str(tx.status.value if hasattr(tx.status, "value") else tx.status).lower(),
+        "status_raw": str(tx.status.value if hasattr(tx.status, "value") else tx.status),
+        "product_id": first_item.product_id if first_item else 0,
+        "product_name": prod_name,
+        "sku": prod_sku,
+        "from_location_id": tx.source_location_id,
+        "from_location_name": source_name,
+        "to_location_id": tx.destination_location_id,
+        "to_location_name": dest_name,
+        "quantity": qty,
+        "contact": tx.contact or tx.party_name or "Vendor",
+        "party_name": tx.party_name or tx.contact or "Vendor",
+        "scheduled_date": tx.schedule_date.isoformat() if tx.schedule_date else None,
+        "created_at": tx.created_at.isoformat() if tx.created_at else None,
+        "done_at": tx.validated_at.isoformat() if tx.validated_at else None,
+        "validated_by": tx.validated_by,
+        "items": items_list,
+        "ledger": ledger_entry,
+    }
+
+
+@router.get("")
+def list_receipts(
+    status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _: models.User = Depends(get_current_user),
+):
+    """
+    Receipts List (Section 19).
+    Filters by status (draft, ready, done, canceled) and search keyword.
+    """
+    query = db.query(models.Transaction).filter(models.Transaction.type == TransactionType.RECEIPT)
+    if status_filter:
+        query = query.filter(models.Transaction.status == status_filter.upper())
+    if search:
+        s = f"%{search.strip()}%"
+        query = query.filter(
+            (models.Transaction.reference.ilike(s)) |
+            (models.Transaction.party_name.ilike(s)) |
+            (models.Transaction.contact.ilike(s))
+        )
+    receipts = query.order_by(models.Transaction.id.desc()).all()
+    return [_serialize_receipt(r, db) for r in receipts]
+
+
+@router.get("/{receipt_id}")
+def get_receipt(
+    receipt_id: int,
+    db: Session = Depends(get_db),
+    _: models.User = Depends(get_current_user),
+):
+    """
+    Receipt Detail (Section 19: Draft, Ready, or Done).
+    """
+    tx = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.id == receipt_id, models.Transaction.type == TransactionType.RECEIPT)
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    return _serialize_receipt(tx, db)
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+def create_receipt(
+    payload: schemas.StockMoveIn,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """
+    Create Receipt (Section 19).
+    Initial status: DRAFT.
+    Reference generated by backend: WH/IN/xxxx (Section 41).
+    """
+    if not payload.to_location_id:
+        raise HTTPException(status_code=400, detail="Destination location is required for receipts")
+
+    to_loc = db.query(models.Location).filter(models.Location.id == payload.to_location_id).first()
+    if not to_loc:
+        raise HTTPException(status_code=400, detail="Invalid destination location")
+
+    product = db.query(models.Product).filter(models.Product.id == payload.product_id).first()
+    if not product:
+        raise HTTPException(status_code=400, detail="Invalid product")
+
+    wh_code = to_loc.warehouse.short_code if to_loc.warehouse else "WH"
+    reference = generate_transaction_reference(db, TransactionType.RECEIPT, wh_code)
+
+    tx = models.Transaction(
+        reference=reference,
+        type=TransactionType.RECEIPT,
+        status=TransactionStatus.DRAFT,
+        source_location_id=payload.from_location_id,
+        destination_location_id=to_loc.id,
+        party_name=payload.contact or "Vendor",
+        contact=payload.contact or "Vendor",
+        schedule_date=payload.scheduled_date or datetime.datetime.utcnow(),
+        created_by=user.id,
+    )
+    db.add(tx)
+    db.flush()
+
+    item = models.TransactionItem(
+        transaction_id=tx.id,
+        product_id=product.id,
+        quantity=Decimal(str(payload.quantity)),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(tx)
+
+    return _serialize_receipt(tx, db)
+
+
+@router.post("/{receipt_id}/ready")
+def mark_receipt_ready(
+    receipt_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """
+    Section 19 Flow: DRAFT -> READY
+    Signals goods are arriving or ready for unloading/inspection.
+    """
+    tx = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.id == receipt_id, models.Transaction.type == TransactionType.RECEIPT)
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if tx.status != TransactionStatus.DRAFT:
+        raise HTTPException(status_code=400, detail=f"Cannot transition receipt in status {tx.status} to READY")
+
+    tx.status = TransactionStatus.READY
+    db.commit()
+    db.refresh(tx)
+    return _serialize_receipt(tx, db)
+
+
+@router.post("/{receipt_id}/validate")
+def validate_receipt(
+    receipt_id: int,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """
+    Section 19 Flow: READY (or DRAFT) -> DONE.
+    When validated:
+      on_hand += quantity
+      Create ledger:
+        quantity_before = previous stock
+        quantity_change = +quantity
+        quantity_after = new stock
+        movement_type = RECEIPT
+    """
+    tx = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.id == receipt_id, models.Transaction.type == TransactionType.RECEIPT)
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if tx.status == TransactionStatus.DONE:
+        raise HTTPException(status_code=400, detail="Receipt is already validated (DONE)")
+    if tx.status == TransactionStatus.CANCELED:
+        raise HTTPException(status_code=400, detail="Cannot validate a canceled receipt")
+
+    engine = InventoryTransactionEngine(db)
+    validated_tx = engine.validate_transaction(
+        transaction_id=receipt_id,
+        user=user,
+        idempotency_key=idempotency_key,
+    )
+    return _serialize_receipt(validated_tx, db)
+
+
+@router.post("/{receipt_id}/cancel")
+def cancel_receipt(
+    receipt_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """
+    Cancel receipt (DRAFT or READY -> CANCELED).
+    Staff can cancel their own; Managers can cancel any.
+    """
+    tx = (
+        db.query(models.Transaction)
+        .filter(models.Transaction.id == receipt_id, models.Transaction.type == TransactionType.RECEIPT)
+        .first()
+    )
+    if not tx:
+        raise HTTPException(status_code=404, detail="Receipt not found")
+    if tx.status == TransactionStatus.DONE:
+        raise HTTPException(status_code=400, detail="Cannot cancel a completed (DONE) receipt")
+
+    # Section 6 RBAC check
+    check_transaction_cancellation_permission(tx.created_by, user)
+
+    engine = InventoryTransactionEngine(db)
+    canceled_tx = engine.cancel_transaction(receipt_id, user)
+    return _serialize_receipt(canceled_tx, db)
