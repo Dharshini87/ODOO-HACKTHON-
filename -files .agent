@@ -1,0 +1,42 @@
+[33mcommit 6029acd4ae507eb8e445a6b22e65b664f4c158e2[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: Dhayanithi2006 <dhayanithimu.cse2024@citchennai.net>
+Date:   Sat Sep 26 15:56:08 2026 +0530
+
+    feat: complete Module 14 - Mobile screens matrix, stock and delivery UI, search/filtering, error and offline resilience
+
+ backend/app/routers/move_history_router.py         |  49 [32m++[m[31m-[m
+ backend/app/routers/stock_router.py                |  14 [32m+[m
+ backend/app/schemas.py                             |   5 [32m+[m
+ mobile/lib/app/router.dart                         |  26 [32m+[m[31m-[m
+ mobile/lib/app/theme/app_text_styles.dart          |   6 [32m+[m
+ mobile/lib/core/errors/app_exception.dart          |  61 [32m++[m[31m-[m
+ mobile/lib/core/network/api_client.dart            | 110 [32m+++++[m[31m-[m
+ mobile/lib/core/widgets/app_text_field.dart        |   3 [32m+[m
+ mobile/lib/core/widgets/error_view.dart            |  22 [32m+[m[31m-[m
+ mobile/lib/core/widgets/status_badge.dart          |  65 [32m++[m[31m-[m
+ mobile/lib/core/widgets/system_feedback.dart       | 184 [32m+++++++++[m
+ .../account/presentation/global_search_screen.dart | 201 [32m++++++++++[m
+ .../presentation/notification_detail_screen.dart   |  81 [32m++++[m
+ .../account/presentation/notifications_screen.dart | 143 [32m+++++++[m
+ .../account/presentation/profile_screen.dart       | 126 [32m++++++[m
+ .../account/presentation/settings_screen.dart      | 129 [32m++++++[m
+ .../auth/presentation/otp_verification_screen.dart |  96 [32m+++++[m
+ .../auth/presentation/reset_password_screen.dart   | 124 [32m++++++[m
+ .../presentation/delivery_detail_screen.dart       | 381 [32m+++++++++[m[31m---------[m
+ .../presentation/delivery_list_screen.dart         | 115 [32m++++[m[31m--[m
+ .../features/more/presentation/more_screen.dart    | 153 [32m++++[m[31m----[m
+ .../move_history/presentation/history_screen.dart  | 435 [32m+++++++++++++++[m[31m------[m
+ .../stock/presentation/create_product_screen.dart  | 153 [32m++++++++[m
+ .../stock/presentation/product_detail_screen.dart  | 100 [32m+++++[m
+ .../stock/presentation/stock_detail_screen.dart    | 260 [32m++++++++++++[m
+ .../features/stock/presentation/stock_screen.dart  | 274 [32m++++++++[m[31m-----[m
+ .../presentation/create_location_screen.dart       | 143 [32m+++++++[m
+ .../presentation/create_warehouse_screen.dart      | 113 [32m++++++[m
+ .../presentation/location_list_screen.dart         | 103 [32m+++++[m
+ .../presentation/warehouse_detail_screen.dart      | 129 [32m++++++[m
+ .../presentation/warehouse_list_screen.dart        | 134 [32m+++++++[m
+ .../lib/shared/providers/inventory_providers.dart  |  10 [32m+[m
+ mobile/test/adjustments_test.dart                  |   2 [32m+[m[31m-[m
+ mobile/test/resilience_and_ux_test.dart            | 280 [32m+++++++++++++[m
+ modules/14_MOBILE_FEATURES_UX_AND_RESILIENCE.md    | 270 [32m+++++++++++++[m
+ 35 files changed, 3925 insertions(+), 575 deletions(-)
