@@ -22,12 +22,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   void _checkAuth() async {
-    final isAuthenticated = await ref.read(authProvider.notifier).checkSession();
-    if (!mounted) return;
-    if (isAuthenticated) {
-      context.go('/home');
-    } else {
-      context.go('/login');
+    try {
+      final isAuthenticated = await ref
+          .read(authProvider.notifier)
+          .checkSession()
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      if (!mounted) return;
+      if (isAuthenticated) {
+        context.go('/home');
+      } else {
+        context.go('/login');
+      }
+    } catch (_) {
+      if (mounted) context.go('/login');
     }
   }
 

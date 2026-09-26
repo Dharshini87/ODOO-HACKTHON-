@@ -4,7 +4,12 @@ class SecureStorageService {
   final FlutterSecureStorage _storage;
 
   SecureStorageService({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+      : _storage = storage ??
+            const FlutterSecureStorage(
+              aOptions: AndroidOptions(
+                resetOnError: true,
+              ),
+            );
 
   static const String _keyToken = 'stocksense_jwt_token';
   static const String _keyUser = 'stocksense_user_profile';
