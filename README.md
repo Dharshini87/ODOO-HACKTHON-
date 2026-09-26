@@ -57,20 +57,18 @@ App runs at **http://localhost:5173**.
 | "Last incoming stock" per product | `/move-history/last-incoming/{product_id}` |
 | Dashboard KPIs | `/dashboard` — total products, low/out of stock, pending receipts/deliveries, transfers scheduled |
 
-## Demo script for judges (2 minutes)
+## 🎬 Demo Flow
 
-1. **Log in** with the seeded manager account.
-2. **Dashboard** — show the KPI tiles are live (1 product seeded with 500 boxes on hand).
-3. **Receipts** — create a new receipt, validate it, watch stock go up.
-4. **Delivery** — create a delivery for *more* than what's on hand → show it
-   gets blocked with the exact "Insufficient stock available" error and sits
-   in `Waiting`. Then create a smaller delivery and validate it → stock drops.
-5. **Transfers** — move stock between two locations, validate it, note total
-   company-wide stock is unchanged (check the Stock page).
-6. **Adjustments** — pick a product/location, enter a "counted" quantity that
-   differs from what's recorded, submit → see the diff logged automatically.
-7. **Move History** — show the entire ledger trail, filter by type/status,
-   point out every action from steps 3–6 is permanently recorded here.
+The StockSense demo showcases the complete inventory workflow:
+
+1. Dashboard — View real-time inventory KPIs.
+2. Receipts — Add and validate incoming stock.
+3. Deliveries — Validate stock availability before dispatch.
+4. Transfers — Move inventory between locations.
+5. Adjustments — Record physical stock-count differences.
+6. Move History — Track the complete inventory activity trail.
+
+This demonstrates how StockSense provides end-to-end visibility across inventory operations.
 
 ## Project structure
 ```
