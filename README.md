@@ -93,11 +93,4 @@ stocksense/
         └── pages/              # One page per feature area
 ```
 
-## Known limitations (be upfront about these with judges if asked)
-- OTP is logged to the backend console, not actually emailed/texted — no
-  provider was wired up for the hackathon timebox.
-- SQLite is used for simplicity; swap `DATABASE_URL` in `database.py` for
-  Postgres in a real deployment.
-- No role-based permission enforcement yet (both "manager" and "staff" roles
-  can currently do everything) — the schema supports it, the endpoint guards
-  don't yet.
+
