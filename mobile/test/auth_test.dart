@@ -7,6 +7,8 @@ import 'package:stocksense_mobile/features/auth/presentation/auth_provider.dart'
 import 'package:stocksense_mobile/features/auth/presentation/login_screen.dart';
 import 'package:stocksense_mobile/features/auth/presentation/register_screen.dart';
 import 'package:stocksense_mobile/features/auth/presentation/forgot_password_screen.dart';
+import 'package:stocksense_mobile/features/auth/presentation/otp_verification_screen.dart';
+import 'package:stocksense_mobile/features/auth/presentation/reset_password_screen.dart';
 import 'package:stocksense_mobile/core/providers/core_providers.dart';
 import 'package:stocksense_mobile/core/storage/secure_storage.dart';
 import 'package:stocksense_mobile/core/network/api_client.dart';
@@ -57,6 +59,35 @@ class _FakeApiClient extends ApiClient {
       return Response<T>(
         requestOptions: RequestOptions(path: path),
         data: mockLoginResponse as T,
+        statusCode: 200,
+      );
+    }
+    if (path == ApiEndpoints.forgotPassword) {
+      return Response<T>(
+        requestOptions: RequestOptions(path: path),
+        data: {
+          'message': 'Demo OTP generated.',
+          'demo_otp': '123456',
+          'is_demo': true,
+        } as T,
+        statusCode: 200,
+      );
+    }
+    if (path == ApiEndpoints.verifyOtp) {
+      final body = data as Map<String, dynamic>?;
+      if (body?['otp'] != '123456') {
+        throw Exception('Invalid OTP code. 4 attempt(s) remaining.');
+      }
+      return Response<T>(
+        requestOptions: RequestOptions(path: path),
+        data: {'message': 'OTP verified successfully.', 'valid': true} as T,
+        statusCode: 200,
+      );
+    }
+    if (path == ApiEndpoints.resetPassword) {
+      return Response<T>(
+        requestOptions: RequestOptions(path: path),
+        data: {'message': 'Password reset successful.'} as T,
         statusCode: 200,
       );
     }
@@ -422,6 +453,111 @@ void main() {
       expect(find.text('Reset Password'), findsOneWidget);
       expect(find.text('Email Address'), findsOneWidget);
       expect(find.text('Send OTP Code'), findsOneWidget);
+    });
+
+    testWidgets('ForgotPasswordScreen renders clean UI without demo OTP or demo banner', (tester) async {
+      final fakeStorage = _FakeSecureStorage();
+      final fakeApi = _FakeApiClient(storage: fakeStorage);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureStorageProvider.overrideWithValue(fakeStorage),
+            apiClientProvider.overrideWithValue(fakeApi),
+          ],
+          child: const MaterialApp(home: ForgotPasswordScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify clean UI elements
+      expect(find.text('Reset Password'), findsOneWidget);
+      expect(find.text('Email Address'), findsOneWidget);
+      expect(find.text("We'll send a 6-digit code to this address."), findsOneWidget);
+      expect(find.text('Send OTP Code'), findsOneWidget);
+      expect(find.text('Back to Sign In'), findsOneWidget);
+
+      // Verify no demo text or banners appear
+      expect(find.text('OTP generated successfully'), findsNothing);
+      expect(find.textContaining('Demo OTP'), findsNothing);
+      expect(find.textContaining('Demo mode'), findsNothing);
+      expect(find.text('Continue to Verification'), findsNothing);
+    });
+
+    testWidgets('OtpVerificationScreen displays clean UI without demo OTP banner', (tester) async {
+      final fakeStorage = _FakeSecureStorage();
+      final fakeApi = _FakeApiClient(storage: fakeStorage);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureStorageProvider.overrideWithValue(fakeStorage),
+            apiClientProvider.overrideWithValue(fakeApi),
+          ],
+          child: const MaterialApp(
+            home: OtpVerificationScreen(
+              email: 'staff@stocksense.demo',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Verify Your Email'), findsOneWidget);
+      expect(find.text('staff@stocksense.demo'), findsOneWidget);
+      expect(find.text('Verify Code'), findsOneWidget);
+      expect(find.textContaining('Demo OTP'), findsNothing);
+      expect(find.textContaining('Demo mode'), findsNothing);
+    });
+
+    testWidgets('ResetPasswordScreen renders new password fields and reset button', (tester) async {
+      final fakeStorage = _FakeSecureStorage();
+      final fakeApi = _FakeApiClient(storage: fakeStorage);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureStorageProvider.overrideWithValue(fakeStorage),
+            apiClientProvider.overrideWithValue(fakeApi),
+          ],
+          child: const MaterialApp(
+            home: ResetPasswordScreen(
+              email: 'staff@stocksense.demo',
+              otpCode: '123456',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Create New Password'), findsOneWidget);
+      expect(find.text('New Password'), findsOneWidget);
+      expect(find.text('Confirm New Password'), findsOneWidget);
+      expect(find.text('Reset Password'), findsOneWidget);
+      expect(find.text('Back to Sign In'), findsOneWidget);
+    });
+
+    test('AuthNotifier verifyOtp success and failure with wrong OTP', () async {
+      final fakeStorage = _FakeSecureStorage();
+      final fakeApi = _FakeApiClient(storage: fakeStorage);
+
+      final container = ProviderContainer(
+        overrides: [
+          secureStorageProvider.overrideWithValue(fakeStorage),
+          apiClientProvider.overrideWithValue(fakeApi),
+        ],
+      );
+
+      final notifier = container.read(authProvider.notifier);
+
+      // Correct OTP
+      final success = await notifier.verifyOtp(email: 'staff@stocksense.demo', otp: '123456');
+      expect(success, isTrue);
+
+      // Wrong OTP
+      final failure = await notifier.verifyOtp(email: 'staff@stocksense.demo', otp: '000000');
+      expect(failure, isFalse);
+      expect(container.read(authProvider).errorMessage, contains('Invalid OTP code'));
     });
   });
 }

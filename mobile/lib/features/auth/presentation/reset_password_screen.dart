@@ -61,7 +61,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     if (success) {
       AppFeedback.showSuccess(
         context,
-        'Password reset successfully! You can now sign in with your new password.',
+        'Password reset successful. Please sign in with your new password.',
       );
       context.go('/login');
     } else {
@@ -215,7 +215,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                     ),
                     const SizedBox(height: 28),
                     AppButton(
-                      label: 'Update Password',
+                      label: 'Reset Password',
                       onPressed: _handleReset,
                       isLoading: authState.isLoading,
                       icon: Icons.check_circle_outline_rounded,

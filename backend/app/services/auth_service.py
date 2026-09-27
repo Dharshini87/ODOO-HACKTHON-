@@ -20,6 +20,7 @@ import hashlib
 import logging
 import os
 import secrets
+import sys
 from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
@@ -34,6 +35,25 @@ from ..core.email_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+def is_demo_mode() -> bool:
+    """Return True if STOCKSENSE_DEMO_MODE=1 is set."""
+    return os.getenv("STOCKSENSE_DEMO_MODE", "0").strip().lower() in ("1", "true", "yes")
+
+DEMO_OTP: str = "123456"
+
+DEMO_ACCOUNTS = {
+    "staff@stocksense.demo": {
+        "name": "Warehouse Staff",
+        "role": models.Role.WAREHOUSE_STAFF.value,
+        "default_password": "password123",
+    },
+    "manager@stocksense.demo": {
+        "name": "Inventory Manager",
+        "role": models.Role.INVENTORY_MANAGER.value,
+        "default_password": "password123",
+    },
+}
 
 # Whether to surface the OTP in the API response (dev / CI only)
 _DEV_EXPOSE_OTP: bool = os.getenv("STOCKSENSE_DEV_EXPOSE_OTP", "0").strip() == "1"
@@ -152,34 +172,56 @@ class AuthService:
         )
 
         if not user:
-            # Do NOT reveal that the email is unregistered.
-            logger.info("OTP requested for unknown email (suppressed).")
-            return None
+            if is_demo_mode():
+                # For demo mode: auto-create the demo user so the demo flow is resilient
+                acct = DEMO_ACCOUNTS.get(
+                    email_clean,
+                    {
+                        "name": "Demo User",
+                        "role": models.Role.WAREHOUSE_STAFF.value,
+                        "default_password": "password123",
+                    },
+                )
+                user = models.User(
+                    name=acct["name"],
+                    email=email_clean,
+                    password_hash=security.hash_password(acct["default_password"]),
+                    role=acct["role"],
+                    is_active=True,
+                )
+                self.db.add(user)
+                self.db.commit()
+                self.db.refresh(user)
+            else:
+                # Do NOT reveal that the email is unregistered.
+                logger.info("OTP requested for unknown email (suppressed).")
+                return None
 
         # ---- Resend cooldown check (60 s) based on the newest active record ---
         now = datetime.datetime.now(datetime.timezone.utc)
-        newest_active = (
-            self.db.query(models.PasswordResetOtp)
-            .filter(
-                models.PasswordResetOtp.user_id == user.id,
-                models.PasswordResetOtp.is_used == False,  # noqa: E712
+        if not is_demo_mode():
+            newest_active = (
+                self.db.query(models.PasswordResetOtp)
+                .filter(
+                    models.PasswordResetOtp.user_id == user.id,
+                    models.PasswordResetOtp.is_used == False,  # noqa: E712
+                )
+                .order_by(models.PasswordResetOtp.created_at.desc())
+                .first()
             )
-            .order_by(models.PasswordResetOtp.created_at.desc())
-            .first()
-        )
-        if newest_active and newest_active.last_resend_at:
-            resend_ts = newest_active.last_resend_at
-            if resend_ts.tzinfo is None:
-                resend_ts = resend_ts.replace(tzinfo=datetime.timezone.utc)
-            elapsed = (now - resend_ts).total_seconds()
-            if elapsed < models.PasswordResetOtp.RESEND_COOLDOWN_SECONDS:
-                remaining = int(
-                    models.PasswordResetOtp.RESEND_COOLDOWN_SECONDS - elapsed
-                )
-                raise exceptions.StockSenseException(
-                    f"Please wait {remaining} seconds before requesting another OTP.",
-                    status_code=429,
-                )
+            if newest_active and newest_active.last_resend_at:
+                resend_ts = newest_active.last_resend_at
+                if resend_ts.tzinfo is None:
+                    resend_ts = resend_ts.replace(tzinfo=datetime.timezone.utc)
+                elapsed = (now - resend_ts).total_seconds()
+                if elapsed < models.PasswordResetOtp.RESEND_COOLDOWN_SECONDS:
+                    remaining = int(
+                        models.PasswordResetOtp.RESEND_COOLDOWN_SECONDS - elapsed
+                    )
+                    raise exceptions.StockSenseException(
+                        f"Please wait {remaining} seconds before requesting another OTP.",
+                        status_code=429,
+                    )
 
         # ---- Invalidate all previous unused OTPs for this user ----------------
         self.db.query(models.PasswordResetOtp).filter(
@@ -188,7 +230,11 @@ class AuthService:
         ).update({"is_used": True}, synchronize_session=False)
 
         # ---- Generate + hash OTP ----------------------------------------------
-        otp_plaintext = _generate_secure_otp()
+        if is_demo_mode():
+            otp_plaintext = DEMO_OTP  # Fixed demo OTP: "123456"
+        else:
+            otp_plaintext = _generate_secure_otp()
+
         otp_hash = _hash_otp(otp_plaintext)
         expiry = now + datetime.timedelta(
             minutes=models.PasswordResetOtp.OTP_TTL_MINUTES
@@ -206,8 +252,21 @@ class AuthService:
         self.db.commit()
         self.db.refresh(new_challenge)
 
-        # ---- Deliver via email or surface in dev mode -------------------------
-        if _DEV_EXPOSE_OTP:
+        # ---- Deliver via email, surface in demo mode, or surface in dev mode ---
+        if is_demo_mode():
+            demo_msg = (
+                f"\n======================================================\n"
+                f"[DEMO OTP] Password reset OTP for {user.email}: {otp_plaintext}\n"
+                f"======================================================\n"
+            )
+            sys.stdout.write(demo_msg)
+            sys.stdout.flush()
+            sys.stderr.write(demo_msg)
+            sys.stderr.flush()
+            logger.warning("[DEMO OTP] Password reset OTP for %s: %s", user.email, otp_plaintext)
+            return otp_plaintext
+
+        if _DEV_EXPOSE_OTP or os.getenv("STOCKSENSE_DEV_EXPOSE_OTP", "0").strip() == "1":
             # Only safe for development / automated tests; never in production.
             logger.debug(
                 "[DEV] Password-reset OTP for %s: %s****, challenge_id=%d",
@@ -232,6 +291,69 @@ class AuthService:
             ) from exc
 
         return None  # plaintext OTP is NOT returned in production
+
+    # ----------------------------------------------------------------- verify_otp
+    def verify_otp(self, email: str, otp_code: str) -> bool:
+        """
+        Verify that the supplied OTP matches the newest active challenge.
+        Increments attempts on failure; locks after 5 attempts.
+        Does NOT mark OTP as used (that happens on actual reset).
+        """
+        email_clean = email.strip().lower()
+        otp_clean = otp_code.strip()
+
+        user = (
+            self.db.query(models.User)
+            .filter(models.User.email == email_clean)
+            .first()
+        )
+        if not user:
+            raise exceptions.StockSenseException(
+                "Invalid or expired OTP code.", status_code=400
+            )
+
+        challenge = (
+            self.db.query(models.PasswordResetOtp)
+            .filter(
+                models.PasswordResetOtp.user_id == user.id,
+                models.PasswordResetOtp.is_used == False,  # noqa: E712
+            )
+            .order_by(models.PasswordResetOtp.created_at.desc())
+            .first()
+        )
+
+        if challenge is None:
+            raise exceptions.StockSenseException(
+                "No active password reset request found.", status_code=400
+            )
+
+        if challenge.is_expired():
+            raise exceptions.StockSenseException(
+                "OTP has expired. Please request a new password reset.", status_code=400
+            )
+
+        if challenge.is_locked():
+            raise exceptions.StockSenseException(
+                "Too many incorrect attempts. Please request a new OTP.", status_code=400
+            )
+
+        supplied_hash = _hash_otp(otp_clean)
+        if not secrets.compare_digest(supplied_hash, challenge.otp_hash):
+            challenge.attempts += 1
+            self.db.commit()
+
+            remaining = models.PasswordResetOtp.MAX_ATTEMPTS - challenge.attempts
+            if remaining <= 0:
+                raise exceptions.StockSenseException(
+                    "Too many incorrect attempts. Please request a new OTP.",
+                    status_code=400,
+                )
+            raise exceptions.StockSenseException(
+                f"Invalid OTP code. {remaining} attempt(s) remaining.",
+                status_code=400,
+            )
+
+        return True
 
     # ------------------------------------------------------------ reset_password
     def reset_password(

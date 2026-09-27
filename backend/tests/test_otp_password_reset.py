@@ -38,7 +38,8 @@ from app.services.auth_service import _generate_secure_otp, _hash_otp
 # ─────────────────────────────────────────── fixtures ────────────────────────
 
 @pytest.fixture(scope="function")
-def client_and_db():
+def client_and_db(monkeypatch):
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "0")
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -497,3 +498,206 @@ def test_model_not_locked():
     m = models.PasswordResetOtp(user_id=1, otp_hash="x",
                                  expires_at=datetime.datetime.utcnow(), attempts=4, is_used=False)
     assert m.is_locked() is False
+
+
+# ──────────────────────────────────── DEMO MODE TESTS ──────────────────────────
+
+def test_demo_mode_forgot_password(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "staff@stocksense.demo", "OldPass123!")
+
+    resp = client.post("/api/auth/forgot-password", json={"email": "staff@stocksense.demo"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["message"] == "Demo OTP generated."
+    assert data["demo_otp"] == "123456"
+    assert data["is_demo"] is True
+
+    # Check that in DB it is securely stored as SHA-256 hash, not plaintext
+    user = db.query(models.User).filter_by(email="staff@stocksense.demo").first()
+    challenge = (
+        db.query(models.PasswordResetOtp)
+        .filter_by(user_id=user.id, is_used=False)
+        .first()
+    )
+    assert challenge is not None
+    assert challenge.otp_hash == _hash_otp("123456")
+    assert challenge.otp_hash != "123456"
+
+
+def test_demo_mode_verify_otp_success(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "staff@stocksense.demo", "OldPass123!")
+    client.post("/api/auth/forgot-password", json={"email": "staff@stocksense.demo"})
+
+    resp = client.post("/api/auth/verify-otp", json={
+        "email": "staff@stocksense.demo",
+        "otp": "123456",
+    })
+    assert resp.status_code == 200
+    assert resp.json()["valid"] is True
+
+
+def test_demo_mode_verify_otp_wrong_fails(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "staff@stocksense.demo", "OldPass123!")
+    client.post("/api/auth/forgot-password", json={"email": "staff@stocksense.demo"})
+
+    resp = client.post("/api/auth/verify-otp", json={
+        "email": "staff@stocksense.demo",
+        "otp": "999999",
+    })
+    assert resp.status_code == 400
+    assert "Invalid OTP code" in resp.json()["detail"]
+
+
+def test_demo_mode_verify_otp_lockout(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "staff@stocksense.demo", "OldPass123!")
+    client.post("/api/auth/forgot-password", json={"email": "staff@stocksense.demo"})
+
+    for _ in range(5):
+        resp = client.post("/api/auth/verify-otp", json={
+            "email": "staff@stocksense.demo",
+            "otp": "000000",
+        })
+        assert resp.status_code == 400
+
+    # 6th attempt: locked
+    resp = client.post("/api/auth/verify-otp", json={
+        "email": "staff@stocksense.demo",
+        "otp": "123456",
+    })
+    assert resp.status_code == 400
+    assert "Too many incorrect attempts" in resp.json()["detail"]
+
+
+def test_demo_mode_full_password_reset_and_login(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "staff@stocksense.demo", "OldPass123!")
+
+    # 1. Request OTP in demo mode
+    client.post("/api/auth/forgot-password", json={"email": "staff@stocksense.demo"})
+
+    # 2. Verify OTP
+    v_resp = client.post("/api/auth/verify-otp", json={
+        "email": "staff@stocksense.demo",
+        "otp": "123456",
+    })
+    assert v_resp.status_code == 200
+
+    # 3. Reset password
+    r_resp = client.post("/api/auth/reset-password", json={
+        "email": "staff@stocksense.demo",
+        "otp": "123456",
+        "new_password": "NewSecretPass456!",
+    })
+    assert r_resp.status_code == 200
+
+    # 4. Old password must fail
+    old_login = client.post("/api/auth/login", json={
+        "email": "staff@stocksense.demo",
+        "password": "OldPass123!",
+    })
+    assert old_login.status_code == 401
+
+    # 5. New password must succeed
+    new_login = client.post("/api/auth/login", json={
+        "email": "staff@stocksense.demo",
+        "password": "NewSecretPass456!",
+    })
+    assert new_login.status_code == 200
+    assert "access_token" in new_login.json()
+
+    # 6. Reusing OTP must fail
+    reuse_resp = client.post("/api/auth/reset-password", json={
+        "email": "staff@stocksense.demo",
+        "otp": "123456",
+        "new_password": "AnotherPassword789!",
+    })
+    assert reuse_resp.status_code == 400
+
+
+def test_production_mode_does_not_return_demo_otp(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "0")
+    monkeypatch.setenv("STOCKSENSE_DEV_EXPOSE_OTP", "0")
+    # Mock SMTP to avoid network dependency in unit tests
+    monkeypatch.setattr("app.services.auth_service.send_password_reset_otp", lambda *a, **k: None)
+
+    _register_user(client, "produser@example.com", "ProdPass123!")
+    resp = client.post("/api/auth/forgot-password", json={"email": "produser@example.com"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["demo_otp"] is None
+    assert data["is_demo"] is False
+
+
+def test_demo_mode_manager_account_full_flow(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    _register_user(client, "manager@stocksense.demo", "OldManagerPass123!", role="INVENTORY_MANAGER")
+
+    # 1. Request OTP in demo mode for manager
+    resp = client.post("/api/auth/forgot-password", json={"email": "manager@stocksense.demo"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["demo_otp"] == "123456"
+    assert data["is_demo"] is True
+
+    # 2. Verify OTP
+    v_resp = client.post("/api/auth/verify-otp", json={
+        "email": "manager@stocksense.demo",
+        "otp": "123456",
+    })
+    assert v_resp.status_code == 200
+    assert v_resp.json()["valid"] is True
+
+    # 3. Reset password
+    r_resp = client.post("/api/auth/reset-password", json={
+        "email": "manager@stocksense.demo",
+        "otp": "123456",
+        "new_password": "NewManagerPass456!",
+    })
+    assert r_resp.status_code == 200
+
+    # 4. Old password fails
+    old_login = client.post("/api/auth/login", json={
+        "email": "manager@stocksense.demo",
+        "password": "OldManagerPass123!",
+    })
+    assert old_login.status_code == 401
+
+    # 5. New password succeeds
+    new_login = client.post("/api/auth/login", json={
+        "email": "manager@stocksense.demo",
+        "password": "NewManagerPass456!",
+    })
+    assert new_login.status_code == 200
+    assert "access_token" in new_login.json()
+
+
+def test_demo_status_diagnostic_endpoint(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    resp = client.get("/api/auth/demo-status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["demo_mode_enabled"] is True
+    assert data["demo_otp"] == "123456"
+    assert "staff@stocksense.demo" in data["supported_demo_accounts"]
+    assert "manager@stocksense.demo" in data["supported_demo_accounts"]
+
+
+def test_health_reports_demo_mode(client_and_db, monkeypatch):
+    client, db = client_and_db
+    monkeypatch.setenv("STOCKSENSE_DEMO_MODE", "1")
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json()["demo_mode"] is True
+

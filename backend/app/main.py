@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import engine, Base
+from .core.config import settings
 from .routers import (
     auth_router,
     products_router,
@@ -27,6 +28,10 @@ app = FastAPI(
     description="Ledger-based Inventory Management System",
     version="1.0.0",
 )
+
+@app.on_event("startup")
+def startup_event():
+    print(f"[StockSense] DEMO_MODE_ENABLED={settings.DEMO_MODE}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -143,7 +148,6 @@ def favicon():
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @app.get("/health")
-
 def health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))
@@ -155,4 +159,5 @@ def health(db: Session = Depends(get_db)):
         "service": "stocksense-api",
         "version": "1.0.0",
         "database": db_status,
+        "demo_mode": settings.DEMO_MODE,
     }

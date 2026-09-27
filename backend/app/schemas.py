@@ -60,6 +60,21 @@ class ResetPasswordIn(BaseModel):
         return (self.otp_code or self.otp or "").strip()
 
 
+class VerifyOtpIn(BaseModel):
+    email: EmailStr
+    otp: Optional[str] = None
+    otp_code: Optional[str] = None
+
+    def resolved_otp(self) -> str:
+        """Return whichever OTP field the caller provided."""
+        return (self.otp or self.otp_code or "").strip()
+
+
+class VerifyOtpResponse(BaseModel):
+    message: str = "OTP verified successfully."
+    valid: bool = True
+
+
 class MessageResponse(BaseModel):
     message: str
     demo_otp: Optional[str] = None
@@ -70,10 +85,12 @@ class ForgotPasswordResponse(BaseModel):
     Sent in response to POST /forgot-password.
 
     In production: message only (no OTP).
+    In demo mode (STOCKSENSE_DEMO_MODE=1): demo_otp is '123456', is_demo=True.
     In development (STOCKSENSE_DEV_EXPOSE_OTP=1): demo_otp is populated.
     """
     message: str
     demo_otp: Optional[str] = None
+    is_demo: bool = False
 
 
 # ---------- Category (Section 9) ----------

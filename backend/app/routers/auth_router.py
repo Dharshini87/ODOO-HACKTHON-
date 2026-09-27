@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..core.dependencies import get_current_user, require_manager
-from ..services.auth_service import AuthService
+from ..services.auth_service import AuthService, is_demo_mode, _DEV_EXPOSE_OTP
 from ..core.email_service import EmailConfigurationError, EmailDeliveryError
 
 router = APIRouter(tags=["Authentication"])
@@ -99,33 +99,57 @@ def forgot_password(payload: schemas.ForgotPasswordIn, db: Session = Depends(get
     """
     Section 5: Forgot password — generate and deliver a 6-digit OTP.
 
-    Security:
-    - Response is ALWAYS the same generic message regardless of whether the
-      email is registered (no email enumeration).
-    - OTP is stored only as a SHA-256 hash; plaintext is NEVER returned here
-      in production.
-    - Set STOCKSENSE_DEV_EXPOSE_OTP=1 (environment) to surface the OTP in the
-      response for development / automated testing ONLY.
+    When STOCKSENSE_DEMO_MODE=1:
+    - Fixed demo OTP 123456 is used.
+    - No SMTP delivery is attempted.
+    - Returns: {"message": "Demo OTP generated.", "demo_otp": "123456", "is_demo": true}
+
+    When STOCKSENSE_DEMO_MODE=0:
+    - Generic message (no email enumeration).
+    - OTP is stored only as a SHA-256 hash; plaintext is NEVER returned.
+    - STOCKSENSE_DEV_EXPOSE_OTP=1 surfaces OTP for automated CI tests only.
     """
     service = AuthService(db)
+    demo_active = is_demo_mode()
     try:
-        dev_otp = service.generate_password_reset_otp(payload.email)
+        otp_result = service.generate_password_reset_otp(payload.email)
     except Exception as exc:
-        # Surface rate-limit errors (429) but swallow all others to prevent
-        # leaking user-existence information.
         from ..core.exceptions import StockSenseException
         if isinstance(exc, StockSenseException) and exc.status_code == 429:
             raise HTTPException(status_code=429, detail=str(exc.message))
-        # For delivery errors, return a meaningful 503 instead of 200
         if isinstance(exc, StockSenseException) and exc.status_code == 503:
             raise HTTPException(status_code=503, detail=str(exc.message))
-        # All other errors: generic response (suppress email-enumeration)
-        dev_otp = None
+        otp_result = None
+
+    if demo_active:
+        return schemas.ForgotPasswordResponse(
+            message="Demo OTP generated.",
+            demo_otp=otp_result or "123456",
+            is_demo=True,
+        )
 
     return schemas.ForgotPasswordResponse(
         message="If an account exists for this email, an OTP has been sent.",
-        # demo_otp is only populated when STOCKSENSE_DEV_EXPOSE_OTP=1
-        demo_otp=dev_otp,
+        demo_otp=otp_result,
+        is_demo=False,
+    )
+
+
+@router.post("/verify-otp", response_model=schemas.VerifyOtpResponse)
+def verify_otp(payload: schemas.VerifyOtpIn, db: Session = Depends(get_db)):
+    """
+    Section 5: Verify OTP before resetting password.
+    Accepts: email, otp (or otp_code).
+    Validates challenge without consuming it (single-use consumed at reset-password).
+    """
+    service = AuthService(db)
+    service.verify_otp(
+        email=payload.email,
+        otp_code=payload.resolved_otp(),
+    )
+    return schemas.VerifyOtpResponse(
+        message="OTP verified successfully.",
+        valid=True,
     )
 
 
@@ -182,4 +206,23 @@ def get_auth_system_settings(current_user: models.User = Depends(require_manager
             "role_enforcement": "STRICT_DATABASE_RBAC",
             "current_manager": current_user.email,
         }
+    }
+
+
+@router.get("/demo-status")
+def demo_status():
+    """
+    Safe diagnostic endpoint for development and hackathon verification.
+    Reports whether demo mode is active and which accounts are supported.
+    Does NOT expose any secrets or credentials.
+    """
+    demo_active = is_demo_mode()
+    return {
+        "demo_mode_enabled": demo_active,
+        "demo_otp_supported": demo_active,
+        "demo_otp": "123456" if demo_active else None,
+        "supported_demo_accounts": [
+            "staff@stocksense.demo",
+            "manager@stocksense.demo",
+        ],
     }

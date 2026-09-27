@@ -14,8 +14,13 @@ import 'auth_provider.dart';
 /// On verify → navigate to /reset-password?email=&otp=
 class OtpVerificationScreen extends ConsumerStatefulWidget {
   final String email;
+  final String? demoOtp;
 
-  const OtpVerificationScreen({super.key, required this.email});
+  const OtpVerificationScreen({
+    super.key,
+    required this.email,
+    this.demoOtp,
+  });
 
   @override
   ConsumerState<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -107,17 +112,26 @@ class _OtpVerificationScreenState extends ConsumerState<OtpVerificationScreen> {
     }
   }
 
-  void _handleVerify() {
+  void _handleVerify() async {
     final otp = _currentOtp;
     if (otp.length < 6) {
       AppFeedback.showError(context, 'Please enter the complete 6-digit code');
       return;
     }
 
-    // Navigate to reset-password screen — OTP verification happens at the reset step
-    context.go(
-      '/reset-password?email=${Uri.encodeComponent(widget.email)}&otp=${Uri.encodeComponent(otp)}',
-    );
+    final authNotifier = ref.read(authProvider.notifier);
+    final isValid = await authNotifier.verifyOtp(email: widget.email, otp: otp);
+
+    if (!mounted) return;
+
+    if (isValid) {
+      context.go(
+        '/reset-password?email=${Uri.encodeComponent(widget.email)}&otp=${Uri.encodeComponent(otp)}',
+      );
+    } else {
+      final err = ref.read(authProvider).errorMessage ?? 'Invalid OTP code';
+      AppFeedback.showError(context, err);
+    }
   }
 
   @override

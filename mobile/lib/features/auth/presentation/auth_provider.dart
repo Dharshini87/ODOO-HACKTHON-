@@ -280,6 +280,30 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  Future<bool> verifyOtp({
+    required String email,
+    required String otp,
+  }) async {
+    state = state.copyWith(isLoading: true, errorMessage: null);
+    try {
+      await _api.post(
+        ApiEndpoints.verifyOtp,
+        data: {
+          'email': email.trim().toLowerCase(),
+          'otp': otp.trim(),
+        },
+      );
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        errorMessage: e.toString().replaceAll('Exception:', '').trim(),
+      );
+      return false;
+    }
+  }
+
   Future<bool> resetPassword({
     required String email,
     required String otpCode,

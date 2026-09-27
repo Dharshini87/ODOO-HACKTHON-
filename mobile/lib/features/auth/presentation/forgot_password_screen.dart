@@ -8,7 +8,7 @@ import '../../../core/widgets/app_text_field.dart';
 import 'auth_provider.dart';
 
 /// Step 1 of password-reset flow.
-/// Shows only the email field. On submit → backend sends OTP → navigate to /otp-verification.
+/// Shows the clean email field. On submit → backend sends OTP → automatically navigates to /otp-verification.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -17,7 +17,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
-  final _emailController = TextEditingController();
+  final _emailController = TextEditingController(text: 'staff@stocksense.demo');
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -32,15 +32,13 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     final email = _emailController.text.trim().toLowerCase();
     final authNotifier = ref.read(authProvider.notifier);
 
-    // Call backend; returns demo_otp in dev mode, null in production.
-    // Either way we navigate to OTP verification screen.
+    // Call backend forgot-password API
     await authNotifier.forgotPassword(email);
 
     if (!mounted) return;
 
     final authState = ref.read(authProvider);
 
-    // Surface any rate-limit errors to the user
     if (authState.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -52,7 +50,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       return;
     }
 
-    // Navigate to OTP verification regardless (prevents email enumeration)
+    // Clean flow: automatically navigate to OTP verification upon success
     context.go('/otp-verification?email=${Uri.encodeComponent(email)}');
   }
 
@@ -122,7 +120,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     const SizedBox(height: 12),
                     AppTextField(
                       label: 'Email Address',
-                      hintText: 'user@stocksense.com',
+                      hintText: 'staff@stocksense.demo',
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       prefixIcon: const Icon(
