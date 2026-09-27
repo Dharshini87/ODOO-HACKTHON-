@@ -115,6 +115,36 @@ class _CreateProductScreenState extends ConsumerState<CreateProductScreen> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'SKU is required' : null,
             ),
             const SizedBox(height: AppSpacing.md),
+            ref.watch(categoriesFutureProvider).when(
+              data: (cats) {
+                final activeCats = cats.where((c) => (c['is_active'] as bool?) ?? true).toList();
+                return DropdownButtonFormField<int>(
+                  initialValue: _selectedCategoryId,
+                  decoration: const InputDecoration(labelText: 'Category (Optional)'),
+                  items: [
+                    const DropdownMenuItem<int>(
+                      value: null,
+                      child: Text('No Category'),
+                    ),
+                    ...activeCats.map((c) {
+                      return DropdownMenuItem<int>(
+                        value: c['id'] as int?,
+                        child: Text(c['name']?.toString() ?? ''),
+                      );
+                    }),
+                  ],
+                  onChanged: (val) {
+                    setState(() => _selectedCategoryId = val);
+                  },
+                );
+              },
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: LinearProgressIndicator(),
+              ),
+              error: (err, st) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: AppSpacing.md),
             DropdownButtonFormField<String>(
               initialValue: _uom,
               decoration: const InputDecoration(labelText: 'Unit of Measure'),

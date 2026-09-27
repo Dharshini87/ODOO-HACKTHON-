@@ -35,6 +35,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final reorderVal = ((_product['reorder_level'] ?? _product['reorder_point']) as num?)?.toDouble() ?? 0.0;
     final reorderCtrl = TextEditingController(text: reorderVal.toInt().toString());
     String selectedUom = _product['unit_of_measure'] as String? ?? 'unit';
+    int? selectedCatId = _product['category_id'] as int?;
     bool isActive = (_product['is_active'] as bool?) ?? true;
     bool isSaving = false;
 
@@ -78,6 +79,32 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   controller: skuCtrl,
                   label: 'SKU / Barcode Code',
                   hintText: 'Unique product code',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                const SizedBox(height: AppSpacing.md),
+                ref.watch(categoriesFutureProvider).when(
+                  data: (cats) {
+                    final activeCats = cats.where((c) => (c['is_active'] as bool?) ?? true).toList();
+                    return DropdownButtonFormField<int>(
+                      initialValue: selectedCatId,
+                      decoration: const InputDecoration(labelText: 'Category (Optional)'),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('No Category'),
+                        ),
+                        ...activeCats.map((c) {
+                          return DropdownMenuItem<int>(
+                            value: c['id'] as int?,
+                            child: Text(c['name']?.toString() ?? ''),
+                          );
+                        }),
+                      ],
+                      onChanged: (val) => setDialogState(() => selectedCatId = val),
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (err, st) => const SizedBox.shrink(),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
@@ -145,7 +172,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                         final updated = await repo.updateProduct(prodId, {
                           'name': name,
                           'sku': sku,
-                          'category_id': _product['category_id'],
+                          'category_id': selectedCatId,
                           'unit_of_measure': selectedUom,
                           'cost_per_unit': cost,
                           'reorder_point': reorder,
@@ -244,6 +271,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   ],
                 ),
                 const Divider(height: 24),
+                if (_product['category_name'] != null || _product['category'] != null) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Category', style: AppTextStyles.bodySmall),
+                      Text(
+                        _product['category_name'] ?? _product['category']?['name'] ?? '',
+                        style: AppTextStyles.labelLarge.copyWith(color: AppColors.brand),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
