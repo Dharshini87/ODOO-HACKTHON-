@@ -7,6 +7,8 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/status_badge.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
+import 'product_detail_screen.dart';
 
 class StockDetailScreen extends ConsumerWidget {
   final StockItem item;
@@ -50,6 +52,7 @@ class StockDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final historyAsync = ref.watch(moveHistoryFutureProvider);
     final uom = item.unitOfMeasure;
 
@@ -58,6 +61,32 @@ class StockDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(item.productName, style: AppTextStyles.headlineLarge),
         actions: [
+          if (user?.isManager ?? false)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit Product',
+              onPressed: () {
+                final prods = ref.read(productsFutureProvider).asData?.value ?? [];
+                final prod = prods.firstWhere(
+                  (p) => (p['id'] == item.productId) || (p['sku'] == item.sku),
+                  orElse: () => {
+                    'id': item.productId,
+                    'name': item.productName,
+                    'sku': item.sku,
+                    'unit_of_measure': item.unitOfMeasure,
+                    'unit_cost': item.costPerUnit,
+                    'reorder_point': item.reorderPoint,
+                    'is_active': true,
+                  },
+                );
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ProductDetailScreen(product: Map<String, dynamic>.from(prod as Map)),
+                  ),
+                );
+              },
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Center(child: StatusBadge(status: item.status)),

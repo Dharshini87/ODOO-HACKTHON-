@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:stocksense_mobile/shared/providers/inventory_providers.dart';
+import 'package:stocksense_mobile/features/auth/presentation/auth_provider.dart';
 import 'package:stocksense_mobile/features/dashboard/presentation/dashboard_screen.dart';
 
 void main() {
@@ -168,14 +169,17 @@ void main() {
       ),
     );
 
-    testWidgets('Renders all Section 26 metrics: Total Stock, Waiting Deliveries, Low Stock breakdown, and Intelligence', (tester) async {
+    testWidgets('Renders all Section 26 metrics: Total Stock, Waiting Deliveries, Low Stock breakdown, and Intelligence for Manager', (tester) async {
       tester.view.physicalSize = const Size(800, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
 
+      final managerUser = AuthUser(name: 'Manager User', email: 'manager@example.com', role: 'INVENTORY_MANAGER');
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authProvider.overrideWith(() => _MockAuthNotifier(managerUser)),
             dashboardFutureProvider.overrideWith((ref) async => mockDashboardData),
           ],
           child: const MaterialApp(
@@ -206,7 +210,7 @@ void main() {
       expect(find.text('OUT OF STOCK'), findsOneWidget);
       expect(find.text('LOW STOCK'), findsOneWidget);
 
-      // Verify Section 26 Intelligence Preview
+      // Verify Section 26 Intelligence Preview (Manager only)
       expect(find.text('Inventory Intelligence'), findsOneWidget);
       expect(find.text('\$88500.00'), findsOneWidget);
 
@@ -214,5 +218,50 @@ void main() {
       expect(find.text('Recent Movements'), findsOneWidget);
       expect(find.text('WH/IN/0042'), findsOneWidget);
     });
+
+    testWidgets('Warehouse Staff sees core metrics but NOT Inventory Intelligence preview on Dashboard', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final staffUser = AuthUser(name: 'Staff User', email: 'staff@example.com', role: 'WAREHOUSE_STAFF');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authProvider.overrideWith(() => _MockAuthNotifier(staffUser)),
+            dashboardFutureProvider.overrideWith((ref) async => mockDashboardData),
+          ],
+          child: const MaterialApp(
+            home: DashboardScreen(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Core metrics are visible
+      expect(find.text('TOTAL STOCK'), findsOneWidget);
+      expect(find.text('Low Stock Products'), findsOneWidget);
+      expect(find.text('Recent Movements'), findsOneWidget);
+
+      // Inventory Intelligence is NOT visible to staff
+      expect(find.text('Inventory Intelligence'), findsNothing);
+      expect(find.text('\$88500.00'), findsNothing);
+    });
   });
+}
+
+class _MockAuthNotifier extends AuthNotifier {
+  final AuthUser _mockUser;
+  _MockAuthNotifier(this._mockUser);
+
+  @override
+  AuthState build() {
+    return AuthState(
+      isAuthenticated: true,
+      user: _mockUser,
+      isLoading: false,
+    );
+  }
 }

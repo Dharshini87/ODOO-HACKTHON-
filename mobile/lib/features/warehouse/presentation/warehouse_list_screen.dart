@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -8,7 +9,7 @@ import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
-import 'create_warehouse_screen.dart';
+import '../../auth/presentation/auth_provider.dart';
 import 'warehouse_detail_screen.dart';
 import 'location_list_screen.dart';
 
@@ -17,6 +18,7 @@ class WarehouseListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final warehousesAsync = ref.watch(warehousesFutureProvider);
 
     return Scaffold(
@@ -117,18 +119,15 @@ class WarehouseListScreen extends ConsumerWidget {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.brand,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Warehouse'),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateWarehouseScreen()),
-          );
-        },
-      ),
+      floatingActionButton: (user?.isManager ?? false)
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Warehouse'),
+              onPressed: () => context.push('/warehouses/create'),
+            )
+          : null,
     );
   }
 }

@@ -4,12 +4,13 @@ import '../errors/app_exception.dart';
 
 class AuthInterceptor extends Interceptor {
   final SecureStorageService storage;
-  final void Function()? onUnauthorized;
+  void Function()? onUnauthorized;
 
   AuthInterceptor({
     required this.storage,
     this.onUnauthorized,
   });
+
 
   @override
   Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {

@@ -7,11 +7,8 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/system_feedback.dart';
 import '../../auth/presentation/auth_provider.dart';
-import '../../intelligence/presentation/intelligence_screen.dart';
-import '../../warehouse/presentation/warehouse_list_screen.dart';
 import '../../account/presentation/notifications_screen.dart';
 import '../../account/presentation/profile_screen.dart';
-import '../../account/presentation/settings_screen.dart';
 import '../../account/presentation/global_search_screen.dart';
 
 class MoreScreen extends ConsumerWidget {
@@ -138,29 +135,28 @@ class MoreScreen extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _buildMenuItem(
-            icon: Icons.insights_rounded,
-            title: 'Inventory Intelligence',
-            subtitle: 'Stock velocity, turnover, and projections',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const IntelligenceScreen()),
-              );
-            },
-          ),
+          if (user?.isManager ?? false) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _buildMenuItem(
+              icon: Icons.category_outlined,
+              title: 'Manage Categories',
+              subtitle: 'Product classifications and master groups',
+              onTap: () => context.push('/categories'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _buildMenuItem(
+              icon: Icons.insights_rounded,
+              title: 'Inventory Intelligence',
+              subtitle: 'Stock velocity, turnover, and projections',
+              onTap: () => context.push('/intelligence'),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           _buildMenuItem(
             icon: Icons.warehouse_outlined,
             title: 'Warehouses & Locations',
             subtitle: 'Facility zones, aisles, and storage bins',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const WarehouseListScreen()),
-              );
-            },
+            onTap: () => context.push('/warehouses'),
           ),
           const SizedBox(height: AppSpacing.sm),
           _buildMenuItem(
@@ -190,18 +186,15 @@ class MoreScreen extends ConsumerWidget {
               );
             },
           ),
-          const SizedBox(height: AppSpacing.sm),
-          _buildMenuItem(
-            icon: Icons.settings_outlined,
-            title: 'System & Server Settings',
-            subtitle: 'Backend API connection and offline configuration',
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-          ),
+          if (user?.isManager ?? false) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _buildMenuItem(
+              icon: Icons.settings_outlined,
+              title: 'System & Server Settings',
+              subtitle: 'Backend API connection and offline configuration',
+              onTap: () => context.push('/settings'),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           _buildMenuItem(
             icon: Icons.logout_rounded,

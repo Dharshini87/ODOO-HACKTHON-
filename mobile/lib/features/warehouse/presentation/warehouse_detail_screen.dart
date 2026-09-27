@@ -6,6 +6,7 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
 import 'create_location_screen.dart';
 
 class WarehouseDetailScreen extends ConsumerWidget {
@@ -15,6 +16,7 @@ class WarehouseDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final whId = warehouse['id'] as int? ?? 0;
     final name = warehouse['name'] as String? ?? 'Warehouse';
     final code = warehouse['short_code'] as String? ?? '';
@@ -57,19 +59,22 @@ class WarehouseDetailScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Storage Locations in $name', style: AppTextStyles.labelLarge.copyWith(color: AppColors.inkSecondary)),
-              TextButton.icon(
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add Location'),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => CreateLocationScreen(preselectedWarehouseId: whId),
-                    ),
-                  );
-                },
+              Expanded(
+                child: Text('Storage Locations in $name', style: AppTextStyles.labelLarge.copyWith(color: AppColors.inkSecondary), overflow: TextOverflow.ellipsis),
               ),
+              if (user?.isManager ?? false)
+                TextButton.icon(
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Add Location'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreateLocationScreen(preselectedWarehouseId: whId),
+                      ),
+                    );
+                  },
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),

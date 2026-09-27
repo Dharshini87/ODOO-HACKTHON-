@@ -11,6 +11,8 @@ import '../features/auth/presentation/reset_password_screen.dart';
 import '../features/dashboard/presentation/dashboard_screen.dart';
 import '../features/operations/presentation/operations_screen.dart';
 import '../features/stock/presentation/stock_screen.dart';
+import '../features/stock/presentation/create_product_screen.dart';
+import '../features/stock/presentation/categories_screen.dart';
 import '../features/move_history/presentation/history_screen.dart';
 import '../features/more/presentation/more_screen.dart';
 import '../features/receipts/presentation/receipt_list_screen.dart';
@@ -21,6 +23,12 @@ import '../features/transfers/presentation/transfer_list_screen.dart';
 import '../features/transfers/presentation/create_transfer_screen.dart';
 import '../features/adjustments/presentation/adjustment_list_screen.dart';
 import '../features/adjustments/presentation/create_adjustment_screen.dart';
+import '../features/warehouse/presentation/warehouse_list_screen.dart';
+import '../features/warehouse/presentation/create_warehouse_screen.dart';
+import '../features/warehouse/presentation/location_list_screen.dart';
+import '../features/warehouse/presentation/create_location_screen.dart';
+import '../features/account/presentation/settings_screen.dart';
+import '../features/intelligence/presentation/intelligence_screen.dart';
 import 'scaffold_shell.dart';
 
 class RouterNotifier extends ChangeNotifier {
@@ -59,6 +67,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           loc == '/reset-password' ||
           loc == '/splash';
       final isLoggedIn = authState.isAuthenticated;
+      final isManager = authState.user?.isManager ?? false;
+      debugPrint('ROUTER REDIRECT: loc=$loc, isManager=$isManager, isLoggedIn=$isLoggedIn');
 
       if (!isLoggedIn && !isAuthFlow) {
         return '/login';
@@ -66,6 +76,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isLoggedIn && isAuthFlow && loc != '/splash') {
         return '/home';
       }
+
+      // RBAC Frontend Route Guard: Block warehouse staff from accessing manager-only routes
+      final isManagerOnlyRoute = loc.startsWith('/products/create') ||
+          loc.startsWith('/products/manage') ||
+          loc.startsWith('/categories/manage') ||
+          loc.startsWith('/warehouses/create') ||
+          loc.startsWith('/locations/create') ||
+          loc.startsWith('/settings') ||
+          loc.startsWith('/intelligence');
+
+      if (isLoggedIn && !isManager && isManagerOnlyRoute) {
+        return '/home';
+      }
+
       return null;
     },
     routes: [
@@ -140,6 +164,42 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const CreateAdjustmentScreen(),
           ),
         ],
+      ),
+      GoRoute(
+        path: '/products/create',
+        builder: (context, state) => const CreateProductScreen(),
+      ),
+      GoRoute(
+        path: '/categories',
+        builder: (context, state) => const CategoriesScreen(),
+      ),
+      GoRoute(
+        path: '/warehouses',
+        builder: (context, state) => const WarehouseListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateWarehouseScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/locations',
+        builder: (context, state) => const LocationListScreen(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            builder: (context, state) => const CreateLocationScreen(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/intelligence',
+        builder: (context, state) => const IntelligenceScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

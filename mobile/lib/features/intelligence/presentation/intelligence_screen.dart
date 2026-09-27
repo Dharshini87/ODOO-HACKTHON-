@@ -7,7 +7,9 @@ import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/empty_view.dart';
+import '../../../core/widgets/access_denied_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
 
 class IntelligenceScreen extends ConsumerStatefulWidget {
   const IntelligenceScreen({super.key});
@@ -315,6 +317,14 @@ class _IntelligenceScreenState extends ConsumerState<IntelligenceScreen> with Si
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    if (user != null && !user.isManager) {
+      return const AccessRestrictedScaffold(
+        title: 'Inventory Intelligence',
+        message: 'Only Inventory Managers have permission to access inventory intelligence, turnover projections, and stock analytics.',
+      );
+    }
+
     final stockoutAsync = ref.watch(stockoutFutureProvider);
     final reorderAsync = ref.watch(reorderFutureProvider);
     final currentCoverage = ref.watch(reorderTargetCoverageProvider);

@@ -16,8 +16,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  final _emailController = TextEditingController(text: 'manager@stocksense.com');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController(text: 'staff@stocksense.demo');
+  final _passwordController = TextEditingController(text: 'Pass123!');
   bool _obscurePassword = true;
 
   @override
@@ -222,7 +222,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     isLoading: authState.isLoading,
                     icon: Icons.arrow_forward_rounded,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+
+                  // Demo Role Fast Fill
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(Icons.badge_outlined, size: 16, color: AppColors.brand),
+                        label: const Text('Staff Demo'),
+                        onPressed: () {
+                          setState(() {
+                            _emailController.text = 'staff@stocksense.demo';
+                            _passwordController.text = 'password123';
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                        avatar: const Icon(Icons.admin_panel_settings_outlined, size: 16, color: AppColors.brand),
+                        label: const Text('Manager Demo'),
+                        onPressed: () {
+                          setState(() {
+                            _emailController.text = 'manager@stocksense.demo';
+                            _passwordController.text = 'password123';
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
 
                   // Don't have an account? Sign Up
                   Row(

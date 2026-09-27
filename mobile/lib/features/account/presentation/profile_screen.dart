@@ -69,7 +69,7 @@ class ProfileScreen extends ConsumerWidget {
                   children: [
                     Text('User Role Access', style: AppTextStyles.bodySmall),
                     Text(
-                      user?.role == 'manager' ? 'Full Manager Permissions' : 'Operational Staff Permissions',
+                      (user?.isManager ?? false) ? 'Full Manager Permissions' : 'Operational Staff Permissions',
                       style: AppTextStyles.labelMedium,
                     ),
                   ],

@@ -91,12 +91,59 @@ from sqlalchemy import text
 from .database import get_db
 from sqlalchemy.orm import Session
 from fastapi import Depends
+from .core.dependencies import require_manager, get_current_user
+from . import models
+
+@app.get("/system/settings", tags=["System Settings"])
+@app.get("/api/system/settings", tags=["System Settings"])
+@app.get("/settings/system", tags=["System Settings"])
+@app.get("/api/settings/system", tags=["System Settings"])
+def get_system_settings(current_user: models.User = Depends(require_manager)):
+    """
+    Manager-only access to system & server configuration.
+    Staff members receive HTTP 403 Forbidden.
+    """
+    return {
+        "status": "success",
+        "system": {
+            "project_name": "StockSense",
+            "version": "1.0.0",
+            "auth_method": "JWT Bearer (HS256)",
+            "role_enforcement": "STRICT_DATABASE_RBAC",
+            "current_manager": current_user.email,
+        },
+    }
+
+@app.get("/notifications", tags=["Notifications"])
+@app.get("/api/notifications", tags=["Notifications"])
+def get_notifications(current_user: models.User = Depends(get_current_user)):
+    """
+    View notifications (Staff & Manager allowed).
+    """
+    return {
+        "status": "success",
+        "notifications": [],
+    }
 
 @app.get("/")
 def root():
     return {"message": "StockSense API is running", "docs": "/docs"}
 
+import os
+from fastapi import Response, status
+from fastapi.responses import FileResponse
+
+_FAVICON_PATH = os.path.join(os.path.dirname(__file__), "favicon.png")
+
+@app.get("/favicon.ico", include_in_schema=False)
+@app.get("/favicon.png", include_in_schema=False)
+def favicon():
+    if os.path.exists(_FAVICON_PATH):
+        return FileResponse(_FAVICON_PATH, media_type="image/png")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 @app.get("/health")
+
 def health(db: Session = Depends(get_db)):
     try:
         db.execute(text("SELECT 1"))

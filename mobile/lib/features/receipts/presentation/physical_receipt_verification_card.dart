@@ -566,7 +566,7 @@ class _PhysicalReceiptVerificationCardState
                         children: [
                           Text('SYSTEM QUANTITY',
                               style: AppTextStyles.labelSmall),
-                          Text('${item.systemQuantity.toInt()} ${item.unit ?? "units"}',
+                          Text('${item.systemQuantity.toInt()} ${item.unit}',
                               style: AppTextStyles.headlineSmall),
                         ],
                       ),
@@ -577,7 +577,7 @@ class _PhysicalReceiptVerificationCardState
                               style: AppTextStyles.labelSmall),
                           Text(
                             item.ocrQuantity != null
-                                ? '${item.ocrQuantity!.toInt()} ${item.unit ?? "units"}'
+                                ? '${item.ocrQuantity!.toInt()} ${item.unit}'
                                 : 'Not Found',
                             style: AppTextStyles.headlineSmall.copyWith(
                               color: item.isMismatch
@@ -593,8 +593,9 @@ class _PhysicalReceiptVerificationCardState
                           Text('DIFFERENCE', style: AppTextStyles.labelSmall),
                           Text(
                             item.difference != null
-                                ? '${item.difference! > 0 ? "+" : ""}${item.difference!.toInt()} ${item.unit ?? "units"}'
+                                ? '${item.difference! > 0 ? "+" : ""}${item.difference!.toInt()} ${item.unit}'
                                 : '--',
+
                             style: AppTextStyles.headlineSmall.copyWith(
                               color: item.isMismatch
                                   ? AppColors.statusCancelled

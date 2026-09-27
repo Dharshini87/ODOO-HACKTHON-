@@ -10,7 +10,6 @@ import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
 import '../../auth/presentation/auth_provider.dart';
-import '../../intelligence/presentation/intelligence_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -173,15 +172,81 @@ class DashboardScreen extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: AppSpacing.sm),
+              // Direct Shortcuts for Transfers and Adjustments
+              Row(
+                children: [
+                  Expanded(
+                    child: AppCard(
+                      color: AppColors.panel,
+                      onTap: () => context.push('/transfers'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.brand.withValues(alpha: 0.12),
+                              borderRadius: AppSpacing.borderRadiusSm,
+                            ),
+                            child: const Icon(Icons.swap_horiz_rounded, color: AppColors.brand, size: 20),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            'Transfers',
+                            style: AppTextStyles.headlineMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Internal movement',
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.inkTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: AppCard(
+                      color: AppColors.panel,
+                      onTap: () => context.push('/adjustments'),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.amber.withValues(alpha: 0.15),
+                              borderRadius: AppSpacing.borderRadiusSm,
+                            ),
+                            child: const Icon(Icons.tune_rounded, color: AppColors.amber, size: 20),
+                          ),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            'Adjustments',
+                            style: AppTextStyles.headlineMedium,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Stock count & audit',
+                            style: AppTextStyles.bodySmall.copyWith(color: AppColors.inkTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.lg),
 
               // SECTION 26 CORE DISPLAY METRICS
               Text('Live Inventory Metrics', style: AppTextStyles.headlineMedium),
               const SizedBox(height: AppSpacing.sm),
 
-              // Total Stock Hero Card
+              // Total Stock Hero Card (Direct shortcut to /stock)
               AppCard(
                 color: AppColors.panel,
+                onTap: () => context.go('/stock'),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -310,6 +375,16 @@ class DashboardScreen extends ConsumerWidget {
                 icon: Icons.swap_horiz_rounded,
                 tone: AppColors.charcoal,
                 onTap: () => context.push('/transfers'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              _buildMetricTile(
+                context: context,
+                title: 'Stock Adjustments',
+                value: 'Audit',
+                icon: Icons.tune_rounded,
+                tone: AppColors.inkSecondary,
+                subtitle: 'Physical count reconciliations',
+                onTap: () => context.push('/adjustments'),
               ),
               const SizedBox(height: AppSpacing.lg),
 
@@ -450,29 +525,24 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               const SizedBox(height: AppSpacing.lg),
 
-              // INVENTORY INTELLIGENCE PREVIEW (Section 26 & 28)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Inventory Intelligence', style: AppTextStyles.headlineMedium),
-                  TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const IntelligenceScreen()),
+              // INVENTORY INTELLIGENCE PREVIEW (Section 26 & 28) - Manager Only
+              if (user?.isManager ?? false) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Inventory Intelligence', style: AppTextStyles.headlineMedium),
+                    TextButton(
+                      onPressed: () => context.push('/intelligence'),
+                      child: const Text('View Analytics'),
                     ),
-                    child: const Text('View Analytics'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppCard(
-                color: AppColors.brand.withValues(alpha: 0.05),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const IntelligenceScreen()),
+                  ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                const SizedBox(height: AppSpacing.sm),
+                AppCard(
+                  color: AppColors.brand.withValues(alpha: 0.05),
+                  onTap: () => context.push('/intelligence'),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -547,6 +617,7 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
+            ],
 
               // RECENT MOVEMENTS (Section 26)
               Row(

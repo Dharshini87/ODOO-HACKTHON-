@@ -100,7 +100,8 @@ class IntelligenceService:
 
             # Calculate observed days window
             earliest = min(move_dates)
-            days_span = max(1, (datetime.datetime.utcnow() - earliest).days)
+            now = datetime.datetime.now(earliest.tzinfo) if earliest.tzinfo else datetime.datetime.utcnow()
+            days_span = max(1, (now - earliest).days)
             avg_daily_usage = round(total_outbound / days_span, 2)
 
             if avg_daily_usage <= 0:
@@ -189,7 +190,8 @@ class IntelligenceService:
                 continue
 
             earliest = min(move_dates)
-            days_span = max(1, (datetime.datetime.utcnow() - earliest).days)
+            now = datetime.datetime.now(earliest.tzinfo) if earliest.tzinfo else datetime.datetime.utcnow()
+            days_span = max(1, (now - earliest).days)
             avg_daily_usage = round(total_outbound / days_span, 2)
 
             if avg_daily_usage <= 0:

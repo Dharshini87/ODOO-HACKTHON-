@@ -788,6 +788,21 @@ class MasterDataRepository {
     return res.data as List? ?? [];
   }
 
+  Future<dynamic> createCategory(Map<String, dynamic> data) async {
+    final res = await _api.post(ApiEndpoints.categories, data: data);
+    return res.data;
+  }
+
+  Future<dynamic> updateCategory(int id, Map<String, dynamic> data) async {
+    final res = await _api.put('${ApiEndpoints.categories}/$id', data: data);
+    return res.data;
+  }
+
+  Future<dynamic> updateProduct(int id, Map<String, dynamic> data) async {
+    final res = await _api.put('${ApiEndpoints.products}/$id', data: data);
+    return res.data;
+  }
+
   Future<List<dynamic>> getWarehouses() async {
     final res = await _api.get(ApiEndpoints.warehouses);
     return res.data as List? ?? [];
@@ -805,6 +820,10 @@ final masterDataRepositoryProvider = Provider<MasterDataRepository>((ref) {
 
 final productsFutureProvider = FutureProvider<List<dynamic>>((ref) async {
   return ref.watch(masterDataRepositoryProvider).getProducts();
+});
+
+final categoriesFutureProvider = FutureProvider<List<dynamic>>((ref) async {
+  return ref.watch(masterDataRepositoryProvider).getCategories();
 });
 
 final warehousesFutureProvider = FutureProvider<List<dynamic>>((ref) async {

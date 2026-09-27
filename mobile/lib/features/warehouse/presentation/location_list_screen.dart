@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -8,13 +9,14 @@ import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
-import 'create_location_screen.dart';
+import '../../auth/presentation/auth_provider.dart';
 
 class LocationListScreen extends ConsumerWidget {
   const LocationListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authProvider).user;
     final locationsAsync = ref.watch(locationsFutureProvider);
 
     return Scaffold(
@@ -86,18 +88,15 @@ class LocationListScreen extends ConsumerWidget {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.brand,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Location'),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateLocationScreen()),
-          );
-        },
-      ),
+      floatingActionButton: (user?.isManager ?? false)
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Location'),
+              onPressed: () => context.push('/locations/create'),
+            )
+          : null,
     );
   }
 }

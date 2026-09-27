@@ -5,7 +5,9 @@ import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/system_feedback.dart';
+import '../../../core/widgets/access_denied_view.dart';
 import '../../../core/providers/core_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -40,6 +42,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    if (user != null && !user.isManager) {
+      return const AccessRestrictedScaffold(
+        title: 'System Settings',
+        message: 'Only Inventory Managers have permission to access system and server configuration.',
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(

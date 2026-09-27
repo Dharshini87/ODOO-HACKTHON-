@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -9,8 +10,8 @@ import '../../../core/widgets/loading_view.dart';
 import '../../../core/widgets/error_view.dart';
 import '../../../core/widgets/empty_view.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
 import 'stock_detail_screen.dart';
-import 'create_product_screen.dart';
 import 'product_detail_screen.dart';
 
 class StockScreen extends ConsumerStatefulWidget {
@@ -249,6 +250,7 @@ class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
     final stockAsync = ref.watch(stockFutureProvider);
     final productsAsync = ref.watch(productsFutureProvider);
 
@@ -362,18 +364,15 @@ class _StockScreenState extends ConsumerState<StockScreen> with SingleTickerProv
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.brand,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Product'),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreateProductScreen()),
-          );
-        },
-      ),
+      floatingActionButton: (user?.isManager ?? false)
+          ? FloatingActionButton.extended(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Product'),
+              onPressed: () => context.push('/products/create'),
+            )
+          : null,
     );
   }
 }

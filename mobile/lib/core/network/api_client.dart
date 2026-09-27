@@ -6,6 +6,7 @@ import '../errors/app_exception.dart';
 
 class ApiClient {
   late final Dio _dio;
+  late final AuthInterceptor _authInterceptor;
   final SecureStorageService storage;
 
   ApiClient({
@@ -13,6 +14,7 @@ class ApiClient {
     String? baseUrl,
     void Function()? onUnauthorized,
   }) {
+    _authInterceptor = AuthInterceptor(storage: storage, onUnauthorized: onUnauthorized);
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl ?? ApiEndpoints.defaultBaseUrl,
@@ -27,7 +29,7 @@ class ApiClient {
     );
 
     _dio.interceptors.addAll([
-      AuthInterceptor(storage: storage, onUnauthorized: onUnauthorized),
+      _authInterceptor,
       LogInterceptor(
         request: true,
         requestHeader: false,
@@ -39,7 +41,12 @@ class ApiClient {
     ]);
   }
 
+  void setOnUnauthorized(void Function()? callback) {
+    _authInterceptor.onUnauthorized = callback;
+  }
+
   void updateBaseUrl(String newBaseUrl) {
+
     _dio.options.baseUrl = newBaseUrl;
   }
 

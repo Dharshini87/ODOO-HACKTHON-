@@ -4,8 +4,12 @@ import '../../../core/providers/core_providers.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../../../core/errors/app_exception.dart';
 
 class AuthUser {
+  static const String roleWarehouseStaff = 'WAREHOUSE_STAFF';
+  static const String roleInventoryManager = 'INVENTORY_MANAGER';
+
   final int? id;
   final String name;
   final String email;
@@ -17,6 +21,15 @@ class AuthUser {
     required this.email,
     required this.role,
   });
+
+  static String normalizeRole(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return roleWarehouseStaff;
+    final upper = raw.trim().toUpperCase();
+    if (upper.contains('MANAGE')) {
+      return roleInventoryManager;
+    }
+    return roleWarehouseStaff;
+  }
 
   bool get isManager => role.toUpperCase().contains('MANAGE');
   bool get isStaff => !isManager;
@@ -30,6 +43,8 @@ class AuthUser {
       'manage_warehouses',
       'manage_locations',
       'cancel_other_transaction',
+      'access_system_settings',
+      'manage_system_settings',
     };
     return !managerOnly.contains(permission.toLowerCase().trim());
   }
@@ -39,7 +54,7 @@ class AuthUser {
       id: json['id'] as int? ?? json['user_id'] as int?,
       name: json['name'] as String? ?? json['user_name'] as String? ?? 'User',
       email: json['email'] as String? ?? '',
-      role: json['role'] as String? ?? 'WAREHOUSE_STAFF',
+      role: normalizeRole(json['role'] as String?),
     );
   }
 
@@ -64,6 +79,9 @@ class AuthState {
     this.isAuthenticated = false,
   });
 
+  AuthUser? get currentUser => user;
+  String? get currentRole => user?.role;
+
   AuthState copyWith({
     bool? isLoading,
     AuthUser? user,
@@ -87,34 +105,73 @@ class AuthNotifier extends Notifier<AuthState> {
   AuthState build() {
     _api = ref.watch(apiClientProvider);
     _storage = ref.watch(secureStorageProvider);
+    _api.setOnUnauthorized(() => handleSessionExpired());
     Future.microtask(() => checkSession());
     return const AuthState(isLoading: false);
   }
 
+  /// App restart and session restoration:
+  /// Verifies token and resolves the authoritative backend role from /api/auth/me.
+  /// If session is expired (401), clears credentials and redirects to login.
   Future<bool> checkSession() async {
     final token = await _storage.getToken();
-    final userRaw = await _storage.getUser();
-
-    if (token != null && token.isNotEmpty && userRaw != null) {
-      try {
-        final user = AuthUser.fromJson(jsonDecode(userRaw) as Map<String, dynamic>);
-        state = AuthState(
-          isAuthenticated: true,
-          user: user,
-          isLoading: false,
-        );
-        return true;
-      } catch (_) {
-        await _storage.clearAll();
-      }
+    if (token == null || token.isEmpty) {
+      state = const AuthState(isAuthenticated: false, user: null, isLoading: false);
+      return false;
     }
-    state = const AuthState(isAuthenticated: false, isLoading: false);
-    return false;
+
+
+    try {
+      // 1. Authoritative backend role resolution
+      final res = await _api.get(ApiEndpoints.me);
+      final data = res.data as Map<String, dynamic>;
+      final user = AuthUser.fromJson(data);
+
+      await _storage.saveUser(jsonEncode(user.toJson()));
+      state = AuthState(
+        isAuthenticated: true,
+        user: user,
+        isLoading: false,
+      );
+      return true;
+    } catch (e) {
+      // Expired / invalid session or deactivated user
+      if (e is UnauthorizedException ||
+          e.toString().contains('401') ||
+          e.toString().contains('Unauthorized') ||
+          e.toString().contains('deactivated')) {
+        await logout();
+        return false;
+      }
+
+      // Offline / network failure fallback: restore cached session if available
+      final userRaw = await _storage.getUser();
+      if (userRaw != null && userRaw.isNotEmpty) {
+        try {
+          final cachedUser = AuthUser.fromJson(jsonDecode(userRaw) as Map<String, dynamic>);
+          state = AuthState(
+            isAuthenticated: true,
+            user: cachedUser,
+            isLoading: false,
+          );
+          return true;
+        } catch (_) {
+          await logout();
+          return false;
+        }
+      }
+
+      await logout();
+      return false;
+    }
   }
 
+  /// Authenticate with backend credentials:
+  /// JWT/session -> fetch authenticated user -> resolve backend role -> store role in session state
   Future<bool> login(String email, String password) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
+      // 1. Authenticate with backend
       final res = await _api.post(
         ApiEndpoints.login,
         data: {
@@ -124,17 +181,19 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       final data = res.data as Map<String, dynamic>;
       final token = data['access_token'] as String;
-      final userName = data['user_name'] as String? ?? 'User';
-      final role = data['role'] as String? ?? 'WAREHOUSE_STAFF';
-      final userId = data['user_id'] as int?;
 
-      final user = AuthUser(
-        id: userId,
-        name: userName,
-        email: email.trim().toLowerCase(),
-        role: role,
-      );
+      // 2. Save token
       await _storage.saveToken(token);
+
+      // 3. Fetch authenticated user from backend session endpoint
+      // Backend remains the single source of truth for the role
+      final meRes = await _api.get(ApiEndpoints.me);
+      final meData = meRes.data as Map<String, dynamic>;
+
+      // 4. Resolve backend role
+      final user = AuthUser.fromJson(meData);
+
+      // 5. Store role and user in existing session state & secure storage
       await _storage.saveUser(jsonEncode(user.toJson()));
 
       state = AuthState(
@@ -144,6 +203,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return true;
     } catch (e) {
+      await _storage.clearAll();
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString().replaceAll('Exception:', '').trim(),
@@ -152,6 +212,8 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Register new user:
+  /// Backend returns token and registers user; backend role is resolved via /api/auth/me
   Future<bool> register({
     required String name,
     required String email,
@@ -171,17 +233,14 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       final data = res.data as Map<String, dynamic>;
       final token = data['access_token'] as String;
-      final userName = data['user_name'] as String? ?? name;
-      final assignedRole = data['role'] as String? ?? role;
-      final userId = data['user_id'] as int?;
 
-      final user = AuthUser(
-        id: userId,
-        name: userName,
-        email: email.trim().toLowerCase(),
-        role: assignedRole,
-      );
       await _storage.saveToken(token);
+
+      // Resolve authoritative backend role
+      final meRes = await _api.get(ApiEndpoints.me);
+      final meData = meRes.data as Map<String, dynamic>;
+      final user = AuthUser.fromJson(meData);
+
       await _storage.saveUser(jsonEncode(user.toJson()));
 
       state = AuthState(
@@ -191,6 +250,7 @@ class AuthNotifier extends Notifier<AuthState> {
       );
       return true;
     } catch (e) {
+      await _storage.clearAll();
       state = state.copyWith(
         isLoading: false,
         errorMessage: e.toString().replaceAll('Exception:', '').trim(),
@@ -244,10 +304,27 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// On logout: clear token, session, current user, and role state.
   Future<void> logout() async {
+    await _storage.deleteToken();
+    await _storage.deleteUser();
     await _storage.clearAll();
-    state = const AuthState(isAuthenticated: false, user: null, isLoading: false);
+    state = const AuthState(
+      isAuthenticated: false,
+      user: null,
+      isLoading: false,
+      errorMessage: null,
+    );
+  }
+
+  /// Handles 401 session expiration by clearing all credentials and returning to login
+  Future<void> handleSessionExpired() async {
+    await logout();
   }
 }
 
 final authProvider = NotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);
+
+final currentUserProvider = Provider<AuthUser?>((ref) {
+  return ref.watch(authProvider).user;
+});

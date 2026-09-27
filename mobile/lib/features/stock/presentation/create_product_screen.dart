@@ -6,9 +6,11 @@ import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/system_feedback.dart';
+import '../../../core/widgets/access_denied_view.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../../../core/providers/core_providers.dart';
 import '../../../shared/providers/inventory_providers.dart';
+import '../../auth/presentation/auth_provider.dart';
 
 class CreateProductScreen extends ConsumerStatefulWidget {
   const CreateProductScreen({super.key});
@@ -81,6 +83,14 @@ class _CreateProductScreenState extends ConsumerState<CreateProductScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(authProvider).user;
+    if (user != null && !user.isManager) {
+      return const AccessRestrictedScaffold(
+        title: 'Create Master Product',
+        message: 'Only Inventory Managers have permission to create and manage catalog products.',
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(

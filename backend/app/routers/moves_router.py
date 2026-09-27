@@ -16,6 +16,7 @@ router = APIRouter(tags=["Moves and Ledger"])
 # ============================================================
 @router.get("/ledger", response_model=List[schemas.StockLedgerOut])
 @router.get("/stock-ledger", response_model=List[schemas.StockLedgerOut])
+@router.get("/stock/ledger", response_model=List[schemas.StockLedgerOut])
 def list_stock_ledger(
     product_id: Optional[int] = Query(None, description="Filter by Product ID"),
     location_id: Optional[int] = Query(None, description="Filter by Location ID"),

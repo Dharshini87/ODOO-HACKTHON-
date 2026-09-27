@@ -241,6 +241,7 @@ def create_location(
     return _create_location_impl(payload, db)
 
 
+@router.put("/locations/{location_id}", response_model=schemas.LocationOut)
 @loc_router.put("/{location_id}", response_model=schemas.LocationOut)
 def update_location(
     location_id: int,
@@ -284,8 +285,10 @@ def update_location(
     return loc
 
 
+@router.delete("/locations/{location_id}")
 @loc_router.delete("/{location_id}")
 def delete_location(
+
     location_id: int,
     db: Session = Depends(get_db),
     _: models.User = Depends(require_permission("manage_locations")),
