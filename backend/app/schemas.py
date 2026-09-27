@@ -50,11 +50,28 @@ class ForgotPasswordIn(BaseModel):
 
 class ResetPasswordIn(BaseModel):
     email: EmailStr
-    otp_code: str
+    # Accept both 'otp_code' (existing) and 'otp' (new Flutter field name)
+    otp_code: Optional[str] = None
+    otp: Optional[str] = None
     new_password: str
+
+    def resolved_otp(self) -> str:
+        """Return whichever OTP field the caller provided."""
+        return (self.otp_code or self.otp or "").strip()
 
 
 class MessageResponse(BaseModel):
+    message: str
+    demo_otp: Optional[str] = None
+
+
+class ForgotPasswordResponse(BaseModel):
+    """
+    Sent in response to POST /forgot-password.
+
+    In production: message only (no OTP).
+    In development (STOCKSENSE_DEV_EXPOSE_OTP=1): demo_otp is populated.
+    """
     message: str
     demo_otp: Optional[str] = None
 

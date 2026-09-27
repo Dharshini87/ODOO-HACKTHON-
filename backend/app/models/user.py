@@ -44,6 +44,7 @@ class User(Base):
     )
 
     reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    otp_challenges = relationship("PasswordResetOtp", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def is_manager(self) -> bool:

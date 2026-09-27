@@ -270,9 +270,11 @@ class AuthNotifier extends Notifier<AuthState> {
       state = state.copyWith(isLoading: false);
       return data['demo_otp'] as String?;
     } catch (e) {
+      final msg = e.toString().replaceAll('Exception:', '').trim();
+      // Surface rate-limit (429) and delivery (503) errors to the UI
       state = state.copyWith(
         isLoading: false,
-        errorMessage: e.toString().replaceAll('Exception:', '').trim(),
+        errorMessage: msg,
       );
       return null;
     }

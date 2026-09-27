@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme/app_colors.dart';
-import '../../../app/theme/app_spacing.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
 import 'auth_provider.dart';
 
+/// Step 1 of password-reset flow.
+/// Shows only the email field. On submit → backend sends OTP → navigate to /otp-verification.
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -17,94 +18,42 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
-  final _otpController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-
-  bool _otpSent = false;
-  String? _demoOtp;
-  bool _obscurePassword = true;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void dispose() {
     _emailController.dispose();
-    _otpController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _handleRequestOtp() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email address')),
-      );
-      return;
-    }
+  void _handleSendOtp() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    final otp = await ref.read(authProvider.notifier).forgotPassword(email);
-    setState(() {
-      _otpSent = true;
-      _demoOtp = otp;
-      if (otp != null) {
-        _otpController.text = otp;
-      }
-    });
+    final email = _emailController.text.trim().toLowerCase();
+    final authNotifier = ref.read(authProvider.notifier);
 
-    if (mounted) {
+    // Call backend; returns demo_otp in dev mode, null in production.
+    // Either way we navigate to OTP verification screen.
+    await authNotifier.forgotPassword(email);
+
+    if (!mounted) return;
+
+    final authState = ref.read(authProvider);
+
+    // Surface any rate-limit errors to the user
+    if (authState.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(otp != null ? 'OTP sent! Demo code: $otp' : 'If registered, an OTP code has been sent.'),
-          backgroundColor: AppColors.brandDark,
-        ),
-      );
-    }
-  }
-
-  void _handleResetPassword() async {
-    final email = _emailController.text.trim();
-    final otp = _otpController.text.trim();
-    final newPassword = _newPasswordController.text;
-    final confirmPassword = _confirmPasswordController.text;
-
-    if (otp.isEmpty || newPassword.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter the OTP and your new password')),
-      );
-      return;
-    }
-
-    if (newPassword != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
-      return;
-    }
-
-    final success = await ref.read(authProvider.notifier).resetPassword(
-          email: email,
-          otpCode: otp,
-          newPassword: newPassword,
-        );
-
-    if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset successfully! Please sign in.'),
-          backgroundColor: AppColors.statusDone,
-        ),
-      );
-      context.go('/login');
-    } else if (mounted) {
-      final error = ref.read(authProvider).errorMessage ?? 'Password reset failed';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
+          content: Text(authState.errorMessage!),
           backgroundColor: AppColors.statusCancelled,
+          behavior: SnackBarBehavior.floating,
         ),
       );
+      return;
     }
+
+    // Navigate to OTP verification regardless (prevents email enumeration)
+    context.go('/otp-verification?email=${Uri.encodeComponent(email)}');
   }
 
   @override
@@ -116,10 +65,10 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Dark Navy Hero Header
+            // Hero header
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.only(top: 60, bottom: 36, left: 24, right: 24),
+              padding: const EdgeInsets.only(top: 60, bottom: 40, left: 24, right: 24),
               decoration: const BoxDecoration(
                 color: AppColors.navyDark,
                 borderRadius: BorderRadius.only(
@@ -129,142 +78,83 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               ),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                        onPressed: () => context.go('/login'),
-                      ),
-                    ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                      onPressed: () => context.go('/login'),
+                    ),
                   ),
                   Container(
-                    width: 56,
-                    height: 56,
+                    width: 64,
+                    height: 64,
                     decoration: BoxDecoration(
                       color: AppColors.brand,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                     ),
-                    child: const Icon(
-                      Icons.lock_reset_rounded,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    child: const Icon(Icons.lock_reset_rounded, color: Colors.white, size: 32),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   Text(
-                    _otpSent ? 'Enter OTP & New Password' : 'Reset Password',
+                    'Reset Password',
                     style: AppTextStyles.displayMedium.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
-                    _otpSent
-                        ? 'Enter the 6-digit verification code'
-                        : 'Enter your registered email to receive an OTP',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.inkTertiary,
-                    ),
+                    'Enter your registered email address and\nwe\'ll send you a one-time code.',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.inkTertiary),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
 
-            // Form
             Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!_otpSent) ...[
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 12),
                     AppTextField(
                       label: 'Email Address',
                       hintText: 'user@stocksense.com',
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      prefixIcon: const Icon(Icons.mail_outline_rounded, size: 20, color: AppColors.inkSecondary),
+                      prefixIcon: const Icon(
+                        Icons.mail_outline_rounded,
+                        size: 20,
+                        color: AppColors.inkSecondary,
+                      ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+                    Text(
+                      'We\'ll send a 6-digit code to this address.',
+                      style: AppTextStyles.labelMedium.copyWith(color: AppColors.inkSecondary),
+                    ),
+                    const SizedBox(height: 28),
                     AppButton(
                       label: 'Send OTP Code',
-                      onPressed: _handleRequestOtp,
+                      onPressed: _handleSendOtp,
                       isLoading: authState.isLoading,
+                      icon: Icons.send_rounded,
                     ),
-                  ] else ...[
-                    if (_demoOtp != null)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: AppColors.brandSubtle,
-                          borderRadius: AppSpacing.borderRadiusMd,
-                          border: Border.all(color: AppColors.brandLight),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline_rounded, color: AppColors.brand, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Demo OTP Code: $_demoOtp',
-                                style: AppTextStyles.labelLarge.copyWith(color: AppColors.brandDark),
-                              ),
-                            ),
-                          ],
+                    const SizedBox(height: 20),
+                    Center(
+                      child: TextButton(
+                        onPressed: () => context.go('/login'),
+                        child: Text(
+                          'Back to Sign In',
+                          style: AppTextStyles.labelLarge.copyWith(color: AppColors.brand),
                         ),
                       ),
-                    AppTextField(
-                      label: '6-Digit OTP Code',
-                      hintText: '123456',
-                      controller: _otpController,
-                      keyboardType: TextInputType.number,
-                      prefixIcon: const Icon(Icons.pin_outlined, size: 20, color: AppColors.inkSecondary),
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      label: 'New Password',
-                      hintText: '••••••••',
-                      controller: _newPasswordController,
-                      obscureText: _obscurePassword,
-                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.inkSecondary),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                          size: 20,
-                          color: AppColors.inkSecondary,
-                        ),
-                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    AppTextField(
-                      label: 'Confirm New Password',
-                      hintText: '••••••••',
-                      controller: _confirmPasswordController,
-                      obscureText: _obscurePassword,
-                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.inkSecondary),
-                    ),
-                    const SizedBox(height: 24),
-                    AppButton(
-                      label: 'Update Password',
-                      onPressed: _handleResetPassword,
-                      isLoading: authState.isLoading,
                     ),
                   ],
-                  const SizedBox(height: 20),
-
-                  Center(
-                    child: TextButton(
-                      onPressed: () => context.go('/login'),
-                      child: Text(
-                        'Back to Sign In',
-                        style: AppTextStyles.labelLarge.copyWith(color: AppColors.brand),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

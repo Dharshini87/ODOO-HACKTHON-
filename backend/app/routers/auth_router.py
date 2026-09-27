@@ -1,12 +1,12 @@
-from typing import Union, Optional
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
 from ..core.dependencies import get_current_user, require_manager
 from ..services.auth_service import AuthService
+from ..core.email_service import EmailConfigurationError, EmailDeliveryError
 
 router = APIRouter(tags=["Authentication"])
 
@@ -47,7 +47,6 @@ async def login(
     email: Optional[str] = None
     password: Optional[str] = None
 
-    # Check content-type to parse JSON or form-encoded
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         try:
@@ -57,7 +56,6 @@ async def login(
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid JSON body")
     else:
-        # Form encoded
         try:
             form = await request.form()
             email = form.get("username") or form.get("email")
@@ -96,16 +94,38 @@ def login_json(payload: schemas.LoginIn, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/forgot-password", response_model=schemas.MessageResponse)
+@router.post("/forgot-password", response_model=schemas.ForgotPasswordResponse)
 def forgot_password(payload: schemas.ForgotPasswordIn, db: Session = Depends(get_db)):
     """
-    Section 5: Forgot password with OTP verification code generation.
+    Section 5: Forgot password — generate and deliver a 6-digit OTP.
+
+    Security:
+    - Response is ALWAYS the same generic message regardless of whether the
+      email is registered (no email enumeration).
+    - OTP is stored only as a SHA-256 hash; plaintext is NEVER returned here
+      in production.
+    - Set STOCKSENSE_DEV_EXPOSE_OTP=1 (environment) to surface the OTP in the
+      response for development / automated testing ONLY.
     """
     service = AuthService(db)
-    otp = service.generate_password_reset_otp(payload.email)
-    return schemas.MessageResponse(
-        message="If that email is registered, an OTP has been sent.",
-        demo_otp=otp,
+    try:
+        dev_otp = service.generate_password_reset_otp(payload.email)
+    except Exception as exc:
+        # Surface rate-limit errors (429) but swallow all others to prevent
+        # leaking user-existence information.
+        from ..core.exceptions import StockSenseException
+        if isinstance(exc, StockSenseException) and exc.status_code == 429:
+            raise HTTPException(status_code=429, detail=str(exc.message))
+        # For delivery errors, return a meaningful 503 instead of 200
+        if isinstance(exc, StockSenseException) and exc.status_code == 503:
+            raise HTTPException(status_code=503, detail=str(exc.message))
+        # All other errors: generic response (suppress email-enumeration)
+        dev_otp = None
+
+    return schemas.ForgotPasswordResponse(
+        message="If an account exists for this email, an OTP has been sent.",
+        # demo_otp is only populated when STOCKSENSE_DEV_EXPOSE_OTP=1
+        demo_otp=dev_otp,
     )
 
 
@@ -113,14 +133,23 @@ def forgot_password(payload: schemas.ForgotPasswordIn, db: Session = Depends(get
 def reset_password(payload: schemas.ResetPasswordIn, db: Session = Depends(get_db)):
     """
     Section 5: Reset password using verified OTP code.
+
+    Flow:
+    1. Find the user by email.
+    2. Find the newest unused, non-expired OTP challenge.
+    3. Reject if no valid challenge / expired / locked (>= 5 attempts).
+    4. Compare supplied OTP against stored hash (constant-time comparison).
+    5. If wrong: increment attempts, return safe error.
+    6. If correct: atomically update password hash + mark OTP used.
+    7. Does NOT issue a new JWT session.
     """
     service = AuthService(db)
     service.reset_password(
         email=payload.email,
-        otp_code=payload.otp_code,
+        otp_code=payload.resolved_otp(),
         new_password=payload.new_password,
     )
-    return schemas.MessageResponse(message="Password reset successful")
+    return schemas.MessageResponse(message="Password reset successful.")
 
 
 @router.get("/me", response_model=schemas.UserOut)

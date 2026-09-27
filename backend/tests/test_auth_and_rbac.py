@@ -132,9 +132,14 @@ def test_deactivated_user_cannot_login(client_and_db):
     assert res.status_code in (401, 403)
 
 
-def test_forgot_password_and_otp_reset(client_and_db):
-    """Section 5: Forgot password OTP flow and password reset."""
+def test_forgot_password_and_otp_reset(client_and_db, monkeypatch):
+    """Section 5: Forgot password OTP flow and password reset — secure path."""
+    import app.services.auth_service as svc_mod
     client, db = client_and_db
+
+    # Enable dev-expose mode so we receive the OTP in the response
+    monkeypatch.setenv("STOCKSENSE_DEV_EXPOSE_OTP", "1")
+    svc_mod._DEV_EXPOSE_OTP = True
 
     reg_payload = {
         "name": "Alex User",
@@ -155,10 +160,18 @@ def test_forgot_password_and_otp_reset(client_and_db):
     assert otp_code is not None
     assert len(otp_code) == 6
 
-    # Verify token stored in password_reset_tokens table
-    reset_record = db.query(models.PasswordResetToken).filter_by(otp_code=otp_code).first()
-    assert reset_record is not None
-    assert reset_record.is_used is False
+    # Verify OTP is stored as hash in new password_reset_otps table
+    user = db.query(models.User).filter_by(email="alex@stocksense.com").first()
+    from app.services.auth_service import _hash_otp
+    otp_record = (
+        db.query(models.PasswordResetOtp)
+        .filter_by(user_id=user.id, is_used=False)
+        .first()
+    )
+    assert otp_record is not None
+    assert otp_record.otp_hash == _hash_otp(otp_code)  # stored as hash
+    assert otp_record.otp_hash != otp_code              # NOT plaintext
+    assert otp_record.is_used is False
 
     # Attempt reset with wrong OTP fails
     bad_reset = client.post(
@@ -199,6 +212,9 @@ def test_forgot_password_and_otp_reset(client_and_db):
         json={"email": "alex@stocksense.com", "password": "NewBrandPassword123!"},
     )
     assert login_new.status_code == 200
+
+    # Cleanup
+    svc_mod._DEV_EXPOSE_OTP = False
 
 
 def test_rbac_permissions_matrix(client_and_db):

@@ -17,6 +17,7 @@ from .transaction import (
 )
 from .stock_ledger import StockLedger
 from .auth_tokens import PasswordResetToken
+from .password_reset_otp import PasswordResetOtp
 from .idempotency import IdempotencyKey
 from .receipt_document import ReceiptDocument
 
@@ -35,6 +36,7 @@ __all__ = [
     "TransactionStatus",
     "StockLedger",
     "PasswordResetToken",
+    "PasswordResetOtp",
     "IdempotencyKey",
     "ReceiptDocument",
     # Backward compatibility
